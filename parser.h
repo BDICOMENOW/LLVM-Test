@@ -3,7 +3,7 @@
 class Parser
 {
 public:
-	Parser(string inputStr);
+	Parser(Lexer lex);
 	~Parser();
 
 public:
@@ -11,14 +11,17 @@ public:
 	bool Expect(TokenType tokenType);
 	bool Consume(TokenType tokenType);
 
+	// shared_ptr<Expr> ParseFactor();
+
 private:
 	Lexer lexer;
 	Token tok;
 };
 
-Parser::Parser(string inputStr)
+Parser::Parser(Lexer lex)
 {
-	lexer = Lexer(inputStr);
+	lexer = lex;
+	tok = lexer.GetNextToken();
 }
 
 Parser::~Parser()

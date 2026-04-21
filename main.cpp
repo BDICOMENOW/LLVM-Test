@@ -10,8 +10,8 @@ int main()
 {
     // 完成 Parser 生成
     string curPtr = "1 +  ";
-
-    Parser parser(curPtr);
+    Lexer lex(curPtr);
+    Parser parser(lex);
 
 
     /* Lexer lex(curPtr);

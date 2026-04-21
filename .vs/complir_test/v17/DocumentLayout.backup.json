@@ -3,16 +3,24 @@
   "WorkspaceRootPath": "C:\\Lixy\\Code\\ProjectForTraining\\complir_test\\complir_test\\",
   "Documents": [
     {
-      "AbsoluteMoniker": "D:0:0:{3AA8A39B-3A76-4E27-996D-A769B7CAFCFF}|complir_test.vcxproj|C:\\Lixy\\Code\\ProjectForTraining\\complir_test\\complir_test\\Lexer.cpp||{D0E1A5C6-B359-4E41-9B60-3365922C2A22}",
-      "RelativeMoniker": "D:0:0:{3AA8A39B-3A76-4E27-996D-A769B7CAFCFF}|complir_test.vcxproj|solutionrelative:Lexer.cpp||{D0E1A5C6-B359-4E41-9B60-3365922C2A22}"
-    },
-    {
       "AbsoluteMoniker": "D:0:0:{3AA8A39B-3A76-4E27-996D-A769B7CAFCFF}|complir_test.vcxproj|C:\\Lixy\\Code\\ProjectForTraining\\complir_test\\complir_test\\main.cpp||{D0E1A5C6-B359-4E41-9B60-3365922C2A22}",
       "RelativeMoniker": "D:0:0:{3AA8A39B-3A76-4E27-996D-A769B7CAFCFF}|complir_test.vcxproj|solutionrelative:main.cpp||{D0E1A5C6-B359-4E41-9B60-3365922C2A22}"
     },
     {
+      "AbsoluteMoniker": "D:0:0:{3AA8A39B-3A76-4E27-996D-A769B7CAFCFF}|complir_test.vcxproj|C:\\Lixy\\Code\\ProjectForTraining\\complir_test\\complir_test\\parser.h||{D0E1A5C6-B359-4E41-9B60-3365922C2A22}",
+      "RelativeMoniker": "D:0:0:{3AA8A39B-3A76-4E27-996D-A769B7CAFCFF}|complir_test.vcxproj|solutionrelative:parser.h||{D0E1A5C6-B359-4E41-9B60-3365922C2A22}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{3AA8A39B-3A76-4E27-996D-A769B7CAFCFF}|complir_test.vcxproj|C:\\Lixy\\Code\\ProjectForTraining\\complir_test\\complir_test\\parser.cc||{D0E1A5C6-B359-4E41-9B60-3365922C2A22}",
+      "RelativeMoniker": "D:0:0:{3AA8A39B-3A76-4E27-996D-A769B7CAFCFF}|complir_test.vcxproj|solutionrelative:parser.cc||{D0E1A5C6-B359-4E41-9B60-3365922C2A22}"
+    },
+    {
       "AbsoluteMoniker": "D:0:0:{3AA8A39B-3A76-4E27-996D-A769B7CAFCFF}|complir_test.vcxproj|C:\\Lixy\\Code\\ProjectForTraining\\complir_test\\complir_test\\Lexer.h||{D0E1A5C6-B359-4E41-9B60-3365922C2A22}",
       "RelativeMoniker": "D:0:0:{3AA8A39B-3A76-4E27-996D-A769B7CAFCFF}|complir_test.vcxproj|solutionrelative:Lexer.h||{D0E1A5C6-B359-4E41-9B60-3365922C2A22}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{3AA8A39B-3A76-4E27-996D-A769B7CAFCFF}|complir_test.vcxproj|C:\\Lixy\\Code\\ProjectForTraining\\complir_test\\complir_test\\Lexer.cpp||{D0E1A5C6-B359-4E41-9B60-3365922C2A22}",
+      "RelativeMoniker": "D:0:0:{3AA8A39B-3A76-4E27-996D-A769B7CAFCFF}|complir_test.vcxproj|solutionrelative:Lexer.cpp||{D0E1A5C6-B359-4E41-9B60-3365922C2A22}"
     }
   ],
   "DocumentGroupContainers": [
@@ -22,21 +30,47 @@
       "DocumentGroups": [
         {
           "DockedWidth": 200,
-          "SelectedChildIndex": 0,
+          "SelectedChildIndex": 5,
           "Children": [
             {
               "$type": "Document",
-              "DocumentIndex": 0,
+              "DocumentIndex": 4,
               "Title": "Lexer.cpp",
               "DocumentMoniker": "C:\\Lixy\\Code\\ProjectForTraining\\complir_test\\complir_test\\Lexer.cpp",
               "RelativeDocumentMoniker": "Lexer.cpp",
               "ToolTip": "C:\\Lixy\\Code\\ProjectForTraining\\complir_test\\complir_test\\Lexer.cpp",
               "RelativeToolTip": "Lexer.cpp",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAAAA8AAAAOAAAAAAAAAA==",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAkAAAAZAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000677|",
               "WhenOpened": "2026-04-13T15:30:30.63Z",
+              "IsPinned": true
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 1,
+              "Title": "parser.h",
+              "DocumentMoniker": "C:\\Lixy\\Code\\ProjectForTraining\\complir_test\\complir_test\\parser.h",
+              "RelativeDocumentMoniker": "parser.h",
+              "ToolTip": "C:\\Lixy\\Code\\ProjectForTraining\\complir_test\\complir_test\\parser.h",
+              "RelativeToolTip": "parser.h",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAIAAAAMAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000680|",
+              "WhenOpened": "2026-04-21T12:10:47.558Z",
               "IsPinned": true,
               "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 2,
+              "Title": "parser.cc",
+              "DocumentMoniker": "C:\\Lixy\\Code\\ProjectForTraining\\complir_test\\complir_test\\parser.cc",
+              "RelativeDocumentMoniker": "parser.cc",
+              "ToolTip": "C:\\Lixy\\Code\\ProjectForTraining\\complir_test\\complir_test\\parser.cc",
+              "RelativeToolTip": "parser.cc",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAABUAAAAOAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000677|",
+              "WhenOpened": "2026-04-21T12:47:16.448Z",
+              "IsPinned": true
             },
             {
               "$type": "Bookmark",
@@ -44,26 +78,25 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 2,
+              "DocumentIndex": 3,
               "Title": "Lexer.h",
               "DocumentMoniker": "C:\\Lixy\\Code\\ProjectForTraining\\complir_test\\complir_test\\Lexer.h",
               "RelativeDocumentMoniker": "Lexer.h",
               "ToolTip": "C:\\Lixy\\Code\\ProjectForTraining\\complir_test\\complir_test\\Lexer.h",
               "RelativeToolTip": "Lexer.h",
-              "ViewState": "AgIAAAMAAAAAAAAAAAAAAAwAAAAOAAAAAAAAAA==",
+              "ViewState": "AgIAAAkAAAAAAAAAAAAnwBgAAAAQAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000680|",
-              "WhenOpened": "2026-04-13T15:30:20.485Z",
-              "EditorCaption": ""
+              "WhenOpened": "2026-04-13T15:30:20.485Z"
             },
             {
               "$type": "Document",
-              "DocumentIndex": 1,
+              "DocumentIndex": 0,
               "Title": "main.cpp",
               "DocumentMoniker": "C:\\Lixy\\Code\\ProjectForTraining\\complir_test\\complir_test\\main.cpp",
               "RelativeDocumentMoniker": "main.cpp",
               "ToolTip": "C:\\Lixy\\Code\\ProjectForTraining\\complir_test\\complir_test\\main.cpp",
               "RelativeToolTip": "main.cpp",
-              "ViewState": "AgIAAAMAAAAAAAAAAAAAABAAAAAmAAAAAAAAAA==",
+              "ViewState": "AgIAAAYAAAAAAAAAAAAAAAsAAAAcAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000677|",
               "WhenOpened": "2026-04-13T15:22:20.315Z",
               "EditorCaption": ""
