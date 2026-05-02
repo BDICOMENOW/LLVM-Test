@@ -1,0 +1,22 @@
+[
+{
+  "directory": "/home/rain/llvm_hello_world/build",
+  "command": "/usr/bin/g++ -DGTEST_HAS_RTTI=0 -I/home/rain/llvm_project_1706/llvm_install_dir/include  -fno-rtti -g   -D_GNU_SOURCE -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS  -fno-exceptions -funwind-tables -fno-rtti -o CMakeFiles/llvm_hello_world.dir/main.cc.o -c /home/rain/llvm_hello_world/main.cc",
+  "file": "/home/rain/llvm_hello_world/main.cc"
+},
+{
+  "directory": "/home/rain/llvm_hello_world/build",
+  "command": "/usr/bin/g++ -DGTEST_HAS_RTTI=0 -I/home/rain/llvm_project_1706/llvm_install_dir/include  -fno-rtti -g   -D_GNU_SOURCE -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS  -fno-exceptions -funwind-tables -fno-rtti -o CMakeFiles/llvm_hello_world.dir/parser.cc.o -c /home/rain/llvm_hello_world/parser.cc",
+  "file": "/home/rain/llvm_hello_world/parser.cc"
+},
+{
+  "directory": "/home/rain/llvm_hello_world/build",
+  "command": "/usr/bin/g++ -DGTEST_HAS_RTTI=0 -I/home/rain/llvm_project_1706/llvm_install_dir/include  -fno-rtti -g   -D_GNU_SOURCE -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS  -fno-exceptions -funwind-tables -fno-rtti -o CMakeFiles/llvm_hello_world.dir/Lexer.cpp.o -c /home/rain/llvm_hello_world/Lexer.cpp",
+  "file": "/home/rain/llvm_hello_world/Lexer.cpp"
+},
+{
+  "directory": "/home/rain/llvm_hello_world/build",
+  "command": "/usr/bin/g++ -DGTEST_HAS_RTTI=0 -I/home/rain/llvm_project_1706/llvm_install_dir/include  -fno-rtti -g   -D_GNU_SOURCE -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS  -fno-exceptions -funwind-tables -fno-rtti -o CMakeFiles/llvm_hello_world.dir/CodeGen.cpp.o -c /home/rain/llvm_hello_world/CodeGen.cpp",
+  "file": "/home/rain/llvm_hello_world/CodeGen.cpp"
+}
+]

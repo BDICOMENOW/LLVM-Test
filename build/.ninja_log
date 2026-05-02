@@ -1,0 +1,10 @@
+# ninja log v5
+1	1424	1777727146070861131	CMakeFiles/llvm_hello_world.dir/main.cc.o	be15b981d59b2f97
+529	692	1777727089483810271	CMakeFiles/llvm_hello_world.dir/Lexer.cpp.o	cd0a998373131510
+229	277	1761834128149872316	llvm_hello_world	2ddc0d7bc4e25de4
+1456	1544	1777727194013707742	../bin/llvm_hello_world	5ec125b122f339d3
+1	515	1777727145166061536	CMakeFiles/llvm_hello_world.dir/parser.cc.o	ade842dafeef6800
+1	1456	1777727193927695940	CMakeFiles/llvm_hello_world.dir/CodeGen.cpp.o	5195c43b249f08bb
+0	1563	1777728325219192578	CMakeFiles/llvm_hello_world.dir/main.cc.o	be15b981d59b2f97
+1	1590	1777728325242407540	CMakeFiles/llvm_hello_world.dir/CodeGen.cpp.o	5195c43b249f08bb
+1590	1685	1777728325339136548	../bin/llvm_hello_world	5ec125b122f339d3
