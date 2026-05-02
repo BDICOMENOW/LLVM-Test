@@ -12,7 +12,7 @@ Token Lexer::GetNextToken()
     Token tok;
     string strNum;
     // 判断空格
-    while (pos >= strInput.size() && isspace(strInput[pos])) {
+    while (pos < strInput.size() && isspace(strInput[pos])) {
         pos++;
     }
     // 到字符串结尾（文件结尾）

@@ -1,8 +1,10 @@
 #pragma once
 #include "Lexer.h"
+#include "ast.h"
 class Parser
 {
 public:
+	Parser() = default;
 	Parser(Lexer lex);
 	~Parser();
 
@@ -11,19 +13,19 @@ public:
 	bool Expect(TokenType tokenType);
 	bool Consume(TokenType tokenType);
 
-	// shared_ptr<Expr> ParseFactor();
+	int GetTokPrecedence();
+	std::unique_ptr<ExprAst> ParseBinOpRhs(int exprPrec, std::unique_ptr<ExprAst> lHs);
+
+
+
+public:
+	std::unique_ptr<ExprAst> ParsePrimary();
+	std::unique_ptr<ExprAst> ParseParenExpr();
+	std::unique_ptr<ExprAst> ParseExpression();
+	std::unique_ptr<ExprAst> ParserNumberExpr();
 
 private:
 	Lexer lexer;
 	Token tok;
 };
 
-Parser::Parser(Lexer lex)
-{
-	lexer = lex;
-	tok = lexer.GetNextToken();
-}
-
-Parser::~Parser()
-{
-}
