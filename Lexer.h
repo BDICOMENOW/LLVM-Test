@@ -9,6 +9,7 @@ enum TokenType {
 	TOKEN_MINUS,
 	TOKEN_MUL,
 	TOKEN_DIV,
+	TOKEN_MOD,
 	TOKEN_LPAREN,
 	TOKEN_RPAREN,
 	TOKEN_EOF,
@@ -27,6 +28,6 @@ public:
 	Token GetNextToken();
 private:
 	
-	int pos;   // É¨ÃèÒÇ
-	string strInput;// »ñÈ¡×Ö·û´®
+	int pos;    // æ‰«æä»ªçš„ä½ç½®
+	string strInput;// è·å–å­—ç¬¦ä¸²
 };

@@ -44,6 +44,8 @@ llvm::Value* CodeGen::VisitBinaryExpr(BinaryExprAst* expr) {
         return builder.CreateNSWMul(left, right, "multmp");
     } else if (expr->op == "/") {
         return builder.CreateSDiv(left, right, "divtmp");
+    } else if (expr->op == "%") {
+        return builder.CreateSRem(left, right, "modtmp");
     }
     return nullptr;
 }

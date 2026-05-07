@@ -1,4 +1,4 @@
-﻿// complir_test.cpp : 此文件包含 "main" 函数。程序执行将在此处开始并结束。
+// complir_test.cpp : 此文件包含 "main" 函数。程序执行将在此处开始并结束。
 
 
 #include <iostream>
@@ -37,7 +37,9 @@ int main()
 {
 
     // 测试 1：最基础的算术
-    Test("1 + 2 * 3");
+    // Test("1 + 2 * 3");
+
+    Test("20 % 4");
 
     // 测试 2：带括号改变优先级的算术
     // Test("(1 + 2) * 3");
