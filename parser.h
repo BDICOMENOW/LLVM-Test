@@ -1,6 +1,9 @@
 #pragma once
 #include "Lexer.h"
 #include "ast.h"
+#include "Sema.h"
+#include <vector> // 引入vector用来存放多行代码的树节点
+
 class Parser
 {
 public:
@@ -23,9 +26,14 @@ public:
 	std::unique_ptr<ExprAst> ParseParenExpr();
 	std::unique_ptr<ExprAst> ParseExpression();
 	std::unique_ptr<ExprAst> ParserNumberExpr();
+	std::vector<std::unique_ptr<ExprAst>> ParseProgram();	// 处理整个程序
+	std::unique_ptr<ExprAst> ParseIdentifierExpr(); // 处理变量和赋值
+	std::unique_ptr<ExprAst> ParseIfStmt();	// 处理if语句
+	std::unique_ptr<ExprAst> ParseBlockStmt(); // 处理代码块
 
 private:
 	Lexer lexer;
 	Token tok;
+	Sema sema; // 安全检查
 };
 

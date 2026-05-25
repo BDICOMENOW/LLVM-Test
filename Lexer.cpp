@@ -1,4 +1,5 @@
 #include "Lexer.h"
+#include <cctype>
 
 Lexer::Lexer(std::string str)
 {
@@ -16,7 +17,7 @@ Token Lexer::GetNextToken()
         pos++;
     }
     // 到字符串结尾（文件结尾）
-    if (pos == strInput.size()) {
+    if (pos >= strInput.size()) {
         tok.type = TOKEN_EOF;
         tok.value = "";
         return tok;
@@ -29,7 +30,25 @@ Token Lexer::GetNextToken()
         }
         tok.type = TOKEN_NUMBER;
         tok.value = strNum;
-    }
+      // 判断字母 （用于解析标识符（变量）或关键字 int）
+    } else if(isalpha(strInput[pos]) || strInput[pos] == '_') {
+        string strId = "";
+        // 只要是字母，数字，下划线，就是合法标识符
+        while (pos < strInput.size() && (isalnum(strInput[pos]) || strInput[pos] == '_')) {
+            strId += strInput[pos];
+            pos++;
+        }
+        if(strId == "int") {
+            tok.type = TOKEN_KW_INT;
+        }else if (strId == "if") {      // 新增：认出 if
+            tok.type = TOKEN_KW_IF;
+        } else if (strId == "else") {    // 新增：认出 else
+            tok.type = TOKEN_KW_ELSE;
+        } else {
+            tok.type = TOKEN_IDENTIFIER;
+        }
+        tok.value = strId;
+    } // 判断符号
     else {
         switch (strInput[pos]) {
             
@@ -79,6 +98,41 @@ Token Lexer::GetNextToken()
             case ')': {
                 tok.type = TOKEN_RPAREN;
                 tok.value = ")";
+                pos++;
+                break;
+            }
+            // 判断赋值符号
+            case '=': {
+                tok.type = TOKEN_ASSIGN;
+                tok.value = "=";
+                pos++;
+                break;
+            }
+            // 判断分号
+            case ';': {
+                tok.type = TOKEN_SEMI;
+                tok.value = ";";
+                pos++;
+                break;
+            }
+            // 判断逗号
+            case ',': {
+                tok.type = TOKEN_COMMA;
+                tok.value = ",";
+                pos++;
+                break;
+            }
+            // 判断左大括号
+            case '{':{
+                tok.type = TOKEN_LBRACE;
+                tok.value = "{";
+                pos++;
+                break;
+            }
+            // 判断右大括号
+            case '}':{
+                tok.type = TOKEN_RBRACE;
+                tok.value = "}";
                 pos++;
                 break;
             }

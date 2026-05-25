@@ -13,39 +13,24 @@ void Test(const string& inputStr)
     
     Lexer lex(inputStr);
     Parser parser(lex);
-    std::unique_ptr<ExprAst> rootNode = parser.ParseExpression();
+    auto nodes = parser.ParseProgram();
 
-    if (rootNode != nullptr) {
+    if (!nodes.empty()) {
         cout << "✅ 抽象语法树构建成功：" << endl;
-        rootNode->Dump(); 
+        for (auto& node : nodes) node->Dump(); 
         
-        cout << "\n🚀 === 对应的 LLVM IR 机器代码 ===" << endl;
-        // 召唤翻译官！
+        cout << "\n🚀 === 对应的 LLVM IR 机器代码 ===\n" << endl;
         CodeGen codegen;
-        // 调用我们刚刚写好的高阶编译入口
-        // 它会在 LLVM 里建好 main 函数和基本块，防止段错误
-        codegen.Compile(rootNode.get());
+        codegen.Compile(nodes); // <--- 把整个程序的节点传给翻译官！
         codegen.GetModule()->print(llvm::outs(), nullptr);
         llvm::outs().flush();
-        std::cout<<endl;
-    } else {
-        cout << "解析失败" << endl;
+        std::cout << endl;
     }
 }
 
 int main()
 {
-
-    // 测试 1：最基础的算术
-    // Test("1 + 2 * 3");
-
-    Test("20 % 4");
-
-    // 测试 2：带括号改变优先级的算术
-    // Test("(1 + 2) * 3");
-
-    // 测试 3：综合测试
-    // Test("1 + 2 * 3 - 4 / 2");
+    Test("int a = 0; if(1) { a = 99; } else { a = 10; } a;");
     
 
     return 0;

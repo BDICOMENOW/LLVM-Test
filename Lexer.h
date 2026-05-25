@@ -12,6 +12,15 @@ enum TokenType {
 	TOKEN_MOD,
 	TOKEN_LPAREN,
 	TOKEN_RPAREN,
+	TOKEN_IDENTIFIER, // 标识符
+	TOKEN_KW_INT,	// int关键字
+	TOKEN_ASSIGN,	// 赋值符：=
+	TOKEN_SEMI,		// 分号
+	TOKEN_COMMA,	// 逗号
+	TOKEN_KW_IF,    // 新增：if 关键字
+	TOKEN_KW_ELSE,  // 新增：else 关键字
+	TOKEN_LBRACE,   // 新增：左大括号 {
+	TOKEN_RBRACE,   // 新增：右大括号 }
 	TOKEN_EOF,
 	TOKEN_ERROR
 };
