@@ -23,6 +23,9 @@ public:
     llvm::Value* VisitAssignExpr(AssignExprAst* expr) override;
     llvm::Value* VisitBlockStmt(BlockStmtAst* expr) override;
     llvm::Value* VisitIfStmt(IfStmtAst* expr) override;
+    llvm::Value* VisitForStmt(ForStmtAst* expr) override;
+    llvm::Value* VisitBreakStmt(BreakStmtAst* expr) override;
+    llvm::Value* VisitContinueStmt(ContinueStmtAst* expr) override;
 
     llvm::Module* GetModule() {
         return module.get();
@@ -36,4 +39,8 @@ private:
 
     // 记录变量名->内存地址
     std::map<std::string, llvm::Value*> NamedValues;
+    // 两个寻路账本
+    // 键：For 节点的图纸指针； 值：真实的物理房间 (BasicBlock)
+    std::map<ExprAst*, llvm::BasicBlock*> breakBBs;
+    std::map<ExprAst*, llvm::BasicBlock*> continueBBs;
 };

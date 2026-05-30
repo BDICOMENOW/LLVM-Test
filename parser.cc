@@ -36,6 +36,11 @@ bool Parser::Consume(TokenType tokenType)
 int Parser::GetTokPrecedence()
 {
 	switch (tok.type) {
+		// 比较运算符
+		case TOKEN_LESS:
+		case TOKEN_EQUAL_EQUAL: {
+			return 5;
+		}
 		case TOKEN_PLUS:
 		case TOKEN_MINUS: {
 			return 10;
@@ -92,9 +97,11 @@ std::unique_ptr<ExprAst> Parser::ParsePrimary()
 {
 	switch (tok.type) {
 		case TOKEN_NUMBER: {
+			// 如果是数字，可能是数字
 			return ParserNumberExpr();
 		}
 		case TOKEN_LPAREN: {
+			// 如果是左括号，可能是括号表达式
 			return ParseParenExpr();
 		}
 		case TOKEN_IDENTIFIER: {
@@ -109,6 +116,18 @@ std::unique_ptr<ExprAst> Parser::ParsePrimary()
 			// 如果是左大括号，可能是大括号表达式
 			return ParseBlockStmt();
 		}
+		case TOKEN_KW_FOR: {
+			// 如果是 for 关键字，可能是 for 语句
+			return ParseForStmt();
+		}
+		case TOKEN_KW_BREAK: {
+			// 如果是 break 关键字，可能是 break 语句
+			return ParseBreakStmt();
+		}
+		case TOKEN_KW_CONTINUE: {
+			// 如果是 continue 关键字，可能是 continue 语句
+			return ParseContinueStmt();
+		}
 		default: {
 			cout << "语法错误，期望一个数字或左括号" << endl;
 			return nullptr;
@@ -119,13 +138,13 @@ std::unique_ptr<ExprAst> Parser::ParsePrimary()
 
 std::unique_ptr<ExprAst> Parser::ParseParenExpr()
 {
-	// 前进一个消耗掉左括号
+	// 前进一个消耗掉左括号（
 	Advance();
 
 	auto expr = ParseExpression();
 	if (!expr) return nullptr;
 
-	// 解析完后必须接着一个右括号
+	// 解析完后必须接着一个右括号）
 	if (!Consume(TOKEN_RPAREN)) {
 		cout << "语法错误，期望')'" << endl;
 		return nullptr;
@@ -235,19 +254,30 @@ std::unique_ptr<ExprAst> Parser::ParseBlockStmt() {
     
     // 1. 进门：吃掉 '{'
     if (tok.type == TOKEN_LBRACE) {
-        Advance(); // 或者 Eat(TOKEN_LBRACE);
+        Advance(); 
     }
 
     // 2. 疯狂解析里面的语句，直到遇到 '}'
     while (tok.type != TOKEN_RBRACE && tok.type != TOKEN_EOF) {
-		
+        
+        // 【防线 1】：忽略开头或多余的空分号（比如连续写了多个 ;;）
+        if (tok.type == TOKEN_SEMI) {
+            Advance();
+            continue;
+        }
+        
         auto stmt = ParseExpression(); 
         if (stmt) {
             blockNode->stmtVec.push_back(std::move(stmt));
         }
+
+        // 解析完一条表达式后，如果末尾有分号，必须吃掉清理！
+        if (tok.type == TOKEN_SEMI) {
+            Advance();
+        }
     }
 
-    // 3. 出门：吃掉 '}'
+    // 3. 吃掉 '}'
     if (tok.type == TOKEN_RBRACE) {
         Advance(); 
     }
@@ -288,4 +318,85 @@ std::unique_ptr<ExprAst> Parser::ParseIfStmt() {
 
     // 5. 将三个零件通过 std::move 硬生生砸进 IfStmtAst 的肚子里！
     return std::make_unique<IfStmtAst>(std::move(condNode), std::move(thenNode), std::move(elseNode));
+}
+
+
+std::unique_ptr<ExprAst> Parser::ParseForStmt() {
+    Advance(); // 吃掉 for
+    Consume(TOKEN_LPAREN); // 吃掉 (
+
+    // 1. 初始化表达式 (例如 i = 0)
+    std::unique_ptr<ExprAst> initNode = nullptr;
+    if (tok.type != TOKEN_SEMI) {
+        initNode = ParseExpression();
+    }
+    Consume(TOKEN_SEMI); // 吃掉第一个 ;
+
+    // 2. 条件表达式 (例如 i < 100)
+    std::unique_ptr<ExprAst> condNode = nullptr;
+    if (tok.type != TOKEN_SEMI) {
+        condNode = ParseExpression();
+    }
+    Consume(TOKEN_SEMI); // 吃掉第二个 ;
+
+    // 3. 步进表达式 (例如 i = i + 1)
+    std::unique_ptr<ExprAst> incNode = nullptr;
+    if (tok.type != TOKEN_RPAREN) {
+        incNode = ParseExpression();
+    }
+    Consume(TOKEN_RPAREN); // 吃掉 )
+
+    // 先把大箱子造出来
+    auto forNode = std::make_unique<ForStmtAst>(std::move(initNode), std::move(condNode), std::move(incNode), nullptr);
+
+    // 🔴 极其神圣的压栈动作！
+    // 车间主任大喊一声：“里面的 break 和 continue 听着，你们的爹是我！”
+    breakNodes.push_back(forNode.get());
+    continueNodes.push_back(forNode.get());
+
+    // 4. 进去解析循环体
+    std::unique_ptr<ExprAst> bodyNode = nullptr;
+    if (tok.type == TOKEN_LBRACE) {
+        bodyNode = ParseBlockStmt();
+    } else {
+        bodyNode = ParseExpression(); // 支持没有大括号的单行 for 循环
+    }
+    forNode->bodyNode = std::move(bodyNode);
+
+    // 🔴 解析完循环体，打扫战场，弹栈！
+    // 退出这个循环了，我不再是后面代码的爹了。
+    breakNodes.pop_back();
+    continueNodes.pop_back();
+
+    return forNode;
+}
+
+std::unique_ptr<ExprAst> Parser::ParseBreakStmt() {
+    Advance(); // 吃掉 break
+
+    auto node = std::make_unique<BreakStmtAst>();
+    
+    // 🔴 核心认亲逻辑：回头看一眼栈顶是谁！
+    if (breakNodes.empty()) {
+        std::cout << "语义错误：break 必须放在循环内部！" << std::endl;
+    } else {
+        node->target = breakNodes.back(); // 死死绑定最近的那个 For 节点
+    }
+    
+    return node;
+}
+
+std::unique_ptr<ExprAst> Parser::ParseContinueStmt() {
+    Advance(); // 吃掉 continue
+
+    auto node = std::make_unique<ContinueStmtAst>();
+    
+    // 🔴 核心认亲逻辑：回头看一眼栈顶是谁！
+    if (continueNodes.empty()) {
+        std::cout << "语义错误：continue 必须放在循环内部！" << std::endl;
+    } else {
+        node->target = continueNodes.back(); // 死死绑定最近的那个 For 节点
+    }
+    
+    return node;
 }

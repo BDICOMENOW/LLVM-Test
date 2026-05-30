@@ -1,4 +1,5 @@
 #include "CodeGen.h"
+#include <llvm/IR/Verifier.h>
 
 CodeGen::CodeGen() : builder(context) {
     // 创建一个模块，给编译器起名字
@@ -27,12 +28,8 @@ void CodeGen::Compile(const std::vector<std::unique_ptr<ExprAst>>& nodes) {
         builder.CreateRet(builder.getInt32(0));
     }
 
-    /* 
-    让树的根节点接受翻译官的访问，翻译官遍历AST，拿到最终的结果（常量折叠后就是那个 7）
-    //llvm::Value* retVal = root->Accept(this);
-    // 生成一条机器指令 return retVal;
-    //builder.CreateRet(retVal);
-    */
+    // 验证模块:安全检查
+    llvm::verifyFunction(*mainFunction,&llvm::errs());
 
 }
 
@@ -61,6 +58,15 @@ llvm::Value* CodeGen::VisitBinaryExpr(BinaryExprAst* expr) {
         return builder.CreateSDiv(left, right, "divtmp");
     } else if (expr->op == "%") {
         return builder.CreateSRem(left, right, "modtmp");
+    } else if (expr->op == "<") {
+        // CreateICmpSLT: Signed Less Than (有符号小于)
+        llvm::Value* cmp = builder.CreateICmpSLT(left, right, "cmptmp");
+        // 极其关键：LLVM的比较结果是 i1(1位布尔值)，我们要把它强转回 i32(32位整数) 保持类型统一！
+        return builder.CreateIntCast(cmp, builder.getInt32Ty(), true, "casttmp");
+    } else if (expr->op == "==") {
+        // CreateICmpEQ: Equal (等于)
+        llvm::Value* cmp = builder.CreateICmpEQ(left, right, "cmptmp");
+        return builder.CreateIntCast(cmp, builder.getInt32Ty(), true, "casttmp");
     }
     return nullptr;
 }
@@ -119,7 +125,7 @@ llvm::Value* CodeGen::VisitIfStmt(IfStmtAst* expr) {
     // 因为你的算式算出来是 i32 (32位整数)，但 if 判断需要 i1 (布尔值真/假)
     // 所以强制加一条比较指令：判断条件的值是不是 不等于 0 (NE: Not Equal)
     condVal = builder.CreateICmpNE(condVal, builder.getInt32(0), "ifcond");
-
+    if (!condVal) return nullptr;
     // 2. 拿到我们当前正在里面铺铁轨的函数 (也就是 main 函数)
     llvm::Function* theFunction = builder.GetInsertBlock()->getParent();
 
@@ -154,4 +160,116 @@ llvm::Value* CodeGen::VisitIfStmt(IfStmtAst* expr) {
 
     // 因为 if 语句本身不产生可以直接拿来加减乘除的数值，所以返回空
     return nullptr; 
+}
+
+
+llvm::Value* CodeGen::VisitForStmt(ForStmtAst* expr) {
+    // 0. 执行初始化 (例如 i = 0)
+    if (expr->initNode) {
+        expr->initNode->Accept(this);
+    }
+
+    // 1. 拿到当前的 main 函数
+    llvm::Function* theFunction = builder.GetInsertBlock()->getParent();
+
+    // 2. 劈开 4 个物理房间 (init 刚才在外面执行了，所以这里建 4 个)
+    llvm::BasicBlock* condBB = llvm::BasicBlock::Create(context, "for.cond", theFunction);
+    llvm::BasicBlock* bodyBB = llvm::BasicBlock::Create(context, "for.body", theFunction);
+    llvm::BasicBlock* incBB  = llvm::BasicBlock::Create(context, "for.inc", theFunction);
+    llvm::BasicBlock* lastBB = llvm::BasicBlock::Create(context, "for.last", theFunction);
+
+    // 🔴 3. 核心大招：泥瓦匠开始登记账本！
+    // 记下：这个 For 图纸，它的越狱房间是 lastBB，跃迁房间是 incBB
+    breakBBs[expr] = lastBB;
+    continueBBs[expr] = incBB;
+
+    // 4. 从当前位置，铺一条毫无保留的铁轨，直接开进 condBB (条件判断房间)
+    builder.CreateBr(condBB);
+
+    // ==========================================
+    // 房间 A：修建 condBB (条件判断)
+    // ==========================================
+    builder.SetInsertPoint(condBB);
+    if (expr->condNode) {
+        llvm::Value* condVal = expr->condNode->Accept(this);
+        // 如果条件解析失败，直接熔断，防止后续崩溃！
+        if (!condVal) return nullptr;
+        // 判断条件是否为真 (!= 0)
+        condVal = builder.CreateICmpNE(condVal, builder.getInt32(0), "forcond");
+        // 道岔：真就进 bodyBB，假就跳出循环进 lastBB
+        builder.CreateCondBr(condVal, bodyBB, lastBB);
+    } else {
+        // 如果没有条件 (死循环 for(;;))，直接进 bodyBB
+        builder.CreateBr(bodyBB);
+    }
+
+    // ==========================================
+    // 房间 B：修建 bodyBB (循环体)
+    // ==========================================
+    builder.SetInsertPoint(bodyBB);
+    if (expr->bodyNode) {
+        expr->bodyNode->Accept(this); // 递归生成里面的机器码！(里面如果遇到break，就会去查账本)
+    }
+    // 循环体跑完，强制铺铁轨去 incBB (步进房间)
+    builder.CreateBr(incBB);
+
+    // ==========================================
+    // 房间 C：修建 incBB (步进房间)
+    // ==========================================
+    builder.SetInsertPoint(incBB);
+    if (expr->incNode) {
+        expr->incNode->Accept(this); // 比如执行 i = i + 1
+    }
+    // 🔴 莫比乌斯环的物理回边：步进完，强制倒车开回 condBB！
+    builder.CreateBr(condBB);
+
+    // 5. 循环造完了，打扫战场，把这本账销毁
+    breakBBs.erase(expr);
+    continueBBs.erase(expr);
+
+    // ==========================================
+    // 房间 D：修建 lastBB (汇合大厅)
+    // ==========================================
+    // 把泥瓦匠传送到最后的大厅，准备接续后面的代码
+    builder.SetInsertPoint(lastBB);
+
+    return nullptr;
+}
+
+
+llvm::Value* CodeGen::VisitBreakStmt(BreakStmtAst* expr) {
+    // 1. 认亲：从图纸上拿到亲爹 (ForStmtAst)
+    ExprAst* targetFor = expr->target;
+    
+    // 2. 查账：从泥瓦匠的 breakBBs 账本里，查到该去哪个物理房间
+    llvm::BasicBlock* targetBB = breakBBs[targetFor];
+
+    // 3. 造门：砸下这扇越狱传送门
+    builder.CreateBr(targetBB);
+
+    // 🔴 4. 死亡垃圾桶机制：防止死神安检员 (Verifier) 暴走
+    llvm::Function* theFunction = builder.GetInsertBlock()->getParent();
+    llvm::BasicBlock* deadBB = llvm::BasicBlock::Create(context, "break.death", theFunction);
+    builder.SetInsertPoint(deadBB); // 把泥瓦匠扔进垃圾桶，后面的废话代码全部砸在这里面
+
+    return nullptr;
+}
+
+
+llvm::Value* CodeGen::VisitContinueStmt(ContinueStmtAst* expr) {
+    // 1. 认亲：拿到亲爹
+    ExprAst* targetFor = expr->target;
+    
+    // 2. 查账：从 continueBBs 账本里，查到步进房间 incBB
+    llvm::BasicBlock* targetBB = continueBBs[targetFor];
+
+    // 3. 造门：砸下这扇跃迁传送门
+    builder.CreateBr(targetBB);
+
+    // 🔴 4. 死亡垃圾桶机制
+    llvm::Function* theFunction = builder.GetInsertBlock()->getParent();
+    llvm::BasicBlock* deadBB = llvm::BasicBlock::Create(context, "continue.death", theFunction);
+    builder.SetInsertPoint(deadBB);
+
+    return nullptr;
 }

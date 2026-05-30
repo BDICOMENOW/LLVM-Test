@@ -44,6 +44,12 @@ Token Lexer::GetNextToken()
             tok.type = TOKEN_KW_IF;
         } else if (strId == "else") {    // 新增：认出 else
             tok.type = TOKEN_KW_ELSE;
+        } else if (strId == "for") {          // <-- [新增] FOR
+            tok.type = TOKEN_KW_FOR;
+        } else if (strId == "break") {        // <-- [新增] BREAK
+            tok.type = TOKEN_KW_BREAK;
+        } else if (strId == "continue") {     // <-- [新增] CONTINUE
+            tok.type = TOKEN_KW_CONTINUE;
         } else {
             tok.type = TOKEN_IDENTIFIER;
         }
@@ -101,10 +107,24 @@ Token Lexer::GetNextToken()
                 pos++;
                 break;
             }
-            // 判断赋值符号
+            // 判断赋值符号 = 或者 比较符号 ==
             case '=': {
-                tok.type = TOKEN_ASSIGN;
-                tok.value = "=";
+                // 探头往后多看一眼，如果是 ==
+                if (pos + 1 < strInput.size() && strInput[pos + 1] == '=') {
+                    tok.type = TOKEN_EQUAL_EQUAL;
+                    tok.value = "==";
+                    pos += 2; // 一次性吃掉两个字符
+                } else {
+                    tok.type = TOKEN_ASSIGN;
+                    tok.value = "=";
+                    pos++;
+                }
+                break;
+            }
+            // 判断小于号 <
+            case '<': {
+                tok.type = TOKEN_LESS;
+                tok.value = "<";
                 pos++;
                 break;
             }

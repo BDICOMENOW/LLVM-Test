@@ -22,18 +22,26 @@ public:
 
 
 public:
-	std::unique_ptr<ExprAst> ParsePrimary();
-	std::unique_ptr<ExprAst> ParseParenExpr();
-	std::unique_ptr<ExprAst> ParseExpression();
+	std::unique_ptr<ExprAst> ParsePrimary(); // 任务处理分发
+	std::unique_ptr<ExprAst> ParseParenExpr(); // 处理括号
+	std::unique_ptr<ExprAst> ParseExpression();	// 处理表达式
 	std::unique_ptr<ExprAst> ParserNumberExpr();
-	std::vector<std::unique_ptr<ExprAst>> ParseProgram();	// 处理整个程序
+	std::vector<std::unique_ptr<ExprAst>> ParseProgram(); // 处理整个程序
 	std::unique_ptr<ExprAst> ParseIdentifierExpr(); // 处理变量和赋值
 	std::unique_ptr<ExprAst> ParseIfStmt();	// 处理if语句
 	std::unique_ptr<ExprAst> ParseBlockStmt(); // 处理代码块
+	std::unique_ptr<ExprAst> ParseForStmt(); // 处理for语句
+	std::unique_ptr<ExprAst> ParseBreakStmt(); // 处理break语句
+	std::unique_ptr<ExprAst> ParseContinueStmt(); // 处理continue语句
 
 private:
 	Lexer lexer;
 	Token tok;
 	Sema sema; // 安全检查
+	
+	// 用来记路的两个栈
+	std::vector<ExprAst*> breakNodes;
+	std::vector<ExprAst*> continueNodes;
+
 };
 

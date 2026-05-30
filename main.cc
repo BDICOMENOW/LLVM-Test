@@ -30,7 +30,7 @@ void Test(const string& inputStr)
 
 int main()
 {
-    Test("int a = 0; if(1) { a = 99; } else { a = 10; } a;");
+    Test("int i = 0; int j = 0; int sum = 0;for(i = 0; i < 10; i = i + 1) { if (i == 5) { break; } for(j = 0; j < 5; j = j + 1) { continue; } sum = sum + 1; }");
     
 
     return 0;

@@ -12,6 +12,9 @@ class VariableAccessAst;
 class AssignExprAst;
 class BlockStmtAst;
 class IfStmtAst;
+class ForStmtAst;
+class BreakStmtAst;
+class ContinueStmtAst;
 
 // 1. 访问（Visitor）接口
 // 定义了后端代码生成器必须实现的方法
@@ -25,6 +28,9 @@ class Visitor {
 	virtual llvm::Value* VisitAssignExpr(AssignExprAst* expr) = 0;
 	virtual llvm::Value* VisitBlockStmt(BlockStmtAst* expr) = 0;
 	virtual llvm::Value* VisitIfStmt(IfStmtAst* expr) = 0;
+	virtual llvm::Value* VisitForStmt(ForStmtAst* expr) = 0;
+	virtual llvm::Value* VisitBreakStmt(BreakStmtAst* expr) = 0;
+	virtual llvm::Value* VisitContinueStmt(ContinueStmtAst* expr) = 0;
 
 };
 
@@ -206,4 +212,77 @@ public:
 	std::unique_ptr<ExprAst> thenNode;// 成立时执行
 	std::unique_ptr<ExprAst> elseNode;// 不成立时执行 (可能为空)
 };
+
+class ForStmtAst : public ExprAst
+{
+	
+public:
+	ForStmtAst(std::unique_ptr<ExprAst> initNode, std::unique_ptr<ExprAst> condNode, 
+               std::unique_ptr<ExprAst> incNode, std::unique_ptr<ExprAst> bodyNode) 
+				 :initNode(std::move(initNode)), condNode(std::move(condNode)), 
+                  incNode(std::move(incNode)), bodyNode(std::move(bodyNode)) {};
+	~ForStmtAst() = default;
+
+	void Dump(int indent = 0) const override {
+		for (int i = 0; i < indent; ++i) std::cout << " ";
+		std::cout << "ForStmt: " << std::endl;
+		if (initNode) { initNode->Dump(indent + 2); }
+		if (condNode) { condNode->Dump(indent + 2); }
+		if (incNode) { incNode->Dump(indent + 2); }
+		if (bodyNode) { bodyNode->Dump(indent + 2); }
+	}
+
+	llvm::Value* Accept(Visitor* vis) override {
+		return vis->VisitForStmt(this);
+	}
+
+public:
+	std::unique_ptr<ExprAst> initNode; // 初始化 (例如 i = 0)
+	std::unique_ptr<ExprAst> condNode; // 条件 (例如 i < 100)
+	std::unique_ptr<ExprAst> incNode;  // 步进 (例如 i = i + 1)
+	std::unique_ptr<ExprAst> bodyNode; // 循环体
+
+};
+
+// 越狱门 Break：自带寻路器
+class BreakStmtAst : public ExprAst
+{
+public:
+	BreakStmtAst() = default;
+	~BreakStmtAst() = default;
+
+	void Dump(int indent = 0) const override {
+		for (int i = 0; i < indent; ++i) std::cout << " ";
+		std::cout << "BreakStmt" << std::endl;
+	}
+
+	llvm::Value* Accept(Visitor* vis) override {
+		return vis->VisitBreakStmt(this);
+	}
+
+public:
+	// 寻路指针！不拥有所有权，只做标记，用裸指针！
+	ExprAst* target = nullptr; 
+};
+
+// 跃迁门 Continue：自带寻路器
+class ContinueStmtAst : public ExprAst
+{
+public:
+	ContinueStmtAst() = default;
+	~ContinueStmtAst() = default;
+
+	void Dump(int indent = 0) const override {
+		for (int i = 0; i < indent; ++i) std::cout << " ";
+		std::cout << "ContinueStmt" << std::endl;
+	}
+
+	llvm::Value* Accept(Visitor* vis) override {
+		return vis->VisitContinueStmt(this);
+	}
+
+public:
+	ExprAst* target = nullptr; // 寻路指针
+};
+
 
