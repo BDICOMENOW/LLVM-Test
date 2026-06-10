@@ -16,10 +16,10 @@ void Test(const string& inputStr)
     auto nodes = parser.ParseProgram();
 
     if (!nodes.empty()) {
-        cout << "✅ 抽象语法树构建成功：" << endl;
+        cout << "  抽象语法树构建成功：" << endl;
         for (auto& node : nodes) node->Dump(); 
         
-        cout << "\n🚀 === 对应的 LLVM IR 机器代码 ===\n" << endl;
+        cout << "\n  === 对应的 LLVM IR 机器代码 ===\n" << endl;
         CodeGen codegen;
         codegen.Compile(nodes); // <--- 把整个程序的节点传给翻译官！
         codegen.GetModule()->print(llvm::outs(), nullptr);
@@ -30,8 +30,7 @@ void Test(const string& inputStr)
 
 int main()
 {
-    Test("int i = 0; int j = 0; int sum = 0;for(i = 0; i < 10; i = i + 1) { if (i == 5) { break; } for(j = 0; j < 5; j = j + 1) { continue; } sum = sum + 1; }");
-    
+    Test("int a = 1; int b = 5; int c = a || b;");
 
     return 0;
 }

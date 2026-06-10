@@ -16,7 +16,15 @@ enum TokenType {
 	TOKEN_KW_INT,	// int关键字
 	TOKEN_ASSIGN,	// 赋值符：=
 	TOKEN_EQUAL_EQUAL, // 相等判断：==
+	TOKEN_AMP_AMP,	// 逻辑与：&&
+	TOKEN_PIPE_PIPE, // 逻辑或：||
 	TOKEN_LESS,		// 小于符：<
+	TOKEN_GREATER,	// 大于符：>
+	TOKEN_PIPE,		// 管道符：|
+	TOKEN_AMP,		// 与符：&
+	TOKEN_CARET,	// 异或符：^
+	TOKEN_LESS_LESS,	   // 左移符：<<
+	TOKEN_GREATER_GREATER, // 右移符：>>
 	TOKEN_SEMI,		// 分号
 	TOKEN_COMMA,	// 逗号
 	TOKEN_KW_IF,    // 新增：if 关键字

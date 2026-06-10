@@ -36,19 +36,37 @@ bool Parser::Consume(TokenType tokenType)
 int Parser::GetTokPrecedence()
 {
 	switch (tok.type) {
-		// 比较运算符
-		case TOKEN_LESS:
-		case TOKEN_EQUAL_EQUAL: {
-			return 5;
+		case TOKEN_PIPE_PIPE:{	// '||'
+			return 2;
 		}
-		case TOKEN_PLUS:
-		case TOKEN_MINUS: {
-			return 10;
+		case TOKEN_AMP_AMP: {	// '&&'
+			return 3;
 		}
-		case TOKEN_MUL:
-		case TOKEN_DIV:
-		case TOKEN_MOD: {
-			return 20;
+		case TOKEN_PIPE: 	// '|'
+		case TOKEN_AMP: 	// '&'
+		case TOKEN_CARET: {	// '^'
+			return 7;
+		}
+		case TOKEN_EQUAL_EQUAL: {	// '=='
+			return 9;
+		}
+		case TOKEN_LESS:	// '<'
+		case TOKEN_GREATER:	{// '>'
+			return 12;
+		}
+
+		case TOKEN_LESS_LESS:	// '<<'
+		case TOKEN_GREATER_GREATER: {	// '>>'
+			return 15;
+		}
+		case TOKEN_PLUS:	// '+'
+		case TOKEN_MINUS: {	// '-'
+			return 18;
+		}
+		case TOKEN_MUL:		// '*'
+		case TOKEN_DIV:		// '/'
+		case TOKEN_MOD: {	// '%'
+			return 22;
 		}
 		default:
 			return -1;	// 不是二元操作符，返回-1
@@ -349,7 +367,7 @@ std::unique_ptr<ExprAst> Parser::ParseForStmt() {
     // 先把大箱子造出来
     auto forNode = std::make_unique<ForStmtAst>(std::move(initNode), std::move(condNode), std::move(incNode), nullptr);
 
-    // 🔴 极其神圣的压栈动作！
+    // 压栈动作！
     // 车间主任大喊一声：“里面的 break 和 continue 听着，你们的爹是我！”
     breakNodes.push_back(forNode.get());
     continueNodes.push_back(forNode.get());
@@ -363,7 +381,7 @@ std::unique_ptr<ExprAst> Parser::ParseForStmt() {
     }
     forNode->bodyNode = std::move(bodyNode);
 
-    // 🔴 解析完循环体，打扫战场，弹栈！
+    // 解析完循环体，弹栈！
     // 退出这个循环了，我不再是后面代码的爹了。
     breakNodes.pop_back();
     continueNodes.pop_back();
@@ -376,7 +394,7 @@ std::unique_ptr<ExprAst> Parser::ParseBreakStmt() {
 
     auto node = std::make_unique<BreakStmtAst>();
     
-    // 🔴 核心认亲逻辑：回头看一眼栈顶是谁！
+    // 核心认亲逻辑：回头看一眼栈顶是谁！
     if (breakNodes.empty()) {
         std::cout << "语义错误：break 必须放在循环内部！" << std::endl;
     } else {
@@ -391,7 +409,7 @@ std::unique_ptr<ExprAst> Parser::ParseContinueStmt() {
 
     auto node = std::make_unique<ContinueStmtAst>();
     
-    // 🔴 核心认亲逻辑：回头看一眼栈顶是谁！
+    // 核心认亲逻辑：回头看一眼栈顶是谁！
     if (continueNodes.empty()) {
         std::cout << "语义错误：continue 必须放在循环内部！" << std::endl;
     } else {

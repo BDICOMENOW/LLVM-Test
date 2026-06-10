@@ -121,11 +121,67 @@ Token Lexer::GetNextToken()
                 }
                 break;
             }
+            // 判断管道号 |
+            case '|': {
+                // 探头往后多看一眼，如果是 ||
+                if (pos + 1 < strInput.size() && strInput[pos + 1] == '|') {
+                    tok.type = TOKEN_PIPE_PIPE;
+                    tok.value = "||";
+                    pos += 2;
+                } else {
+                    tok.type = TOKEN_PIPE;
+                    tok.value = "|";
+                    pos++;
+                }
+                break;
+            }
+            // 判断与号 &
+            case '&': {
+                // 探头往后多看一眼，如果是 &&
+                if (pos + 1 < strInput.size() && strInput[pos + 1] == '&') {
+                    tok.type = TOKEN_AMP_AMP;
+                    tok.value = "&&";
+                    pos += 2;
+                } else {
+                    tok.type = TOKEN_AMP;
+                    tok.value = "&";
+                    pos++;
+                }
+                break;
+            }
+            // 判断异或 ^
+            case '^': {
+                tok.type = TOKEN_CARET;
+                tok.value = "^";
+                pos++;
+                break;
+            }
             // 判断小于号 <
             case '<': {
-                tok.type = TOKEN_LESS;
-                tok.value = "<";
-                pos++;
+                // 探头往后多看一眼，如果是 <<
+                if (pos + 1 < strInput.size() && strInput[pos + 1] == '<') {
+                    tok.type = TOKEN_LESS_LESS;
+                    tok.value = "<<";
+                    pos += 2;
+                } else {
+                    tok.type = TOKEN_LESS;
+                    tok.value = "<";
+                    pos++;
+                }
+                break;
+            }
+            // 判断大于号 >
+            case '>':{
+                // 探头往后多看一眼，如果是 >>
+                if (pos + 1 < strInput.size() && strInput[pos + 1] == '>') {
+                    tok.type = TOKEN_GREATER_GREATER;
+                    tok.value = ">>";
+                    pos += 2;
+                } else {
+                    tok.type = TOKEN_GREATER;
+                    tok.value = ">";
+                    pos++;
+                }
                 break;
             }
             // 判断分号

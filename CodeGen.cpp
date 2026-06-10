@@ -63,10 +63,90 @@ llvm::Value* CodeGen::VisitBinaryExpr(BinaryExprAst* expr) {
         llvm::Value* cmp = builder.CreateICmpSLT(left, right, "cmptmp");
         // 极其关键：LLVM的比较结果是 i1(1位布尔值)，我们要把它强转回 i32(32位整数) 保持类型统一！
         return builder.CreateIntCast(cmp, builder.getInt32Ty(), true, "casttmp");
+    } else if (expr->op == ">") {
+        // CreateICmpSGT: Signed Greater Than (有符号大于)
+        llvm::Value* cmp = builder.CreateICmpSGT(left, right, "cmptmp");
+        return builder.CreateIntCast(cmp, builder.getInt32Ty(), true, "casttmp");
+    } else if (expr->op == "<<") {
+        return builder.CreateShl(left, right, "shltmp");
+    } else if (expr->op == ">>") {
+        return builder.CreateAShr(left, right, "ashrtmp");
+    } else if (expr->op == "&") {
+        return builder.CreateAnd(left, right, "andtmp");
+    } else if (expr->op == "|") {
+        return builder.CreateOr(left, right, "ortmp");
+    } else if (expr->op == "^") {
+        return builder.CreateXor(left, right, "xortmp");
     } else if (expr->op == "==") {
         // CreateICmpEQ: Equal (等于)
         llvm::Value* cmp = builder.CreateICmpEQ(left, right, "cmptmp");
         return builder.CreateIntCast(cmp, builder.getInt32Ty(), true, "casttmp");
+    } else if (expr->op == "&&") {
+        // 1.拿到main函数
+        llvm::Function* theFunction = builder.GetInsertBlock()->getParent();
+        // 2. 创建3个基本块
+        llvm::BasicBlock* nextBB = llvm::BasicBlock::Create(context, "nextBB", theFunction);
+        llvm::BasicBlock* falseBB = llvm::BasicBlock::Create(context, "falseBB", theFunction);
+        llvm::BasicBlock* mergeBB = llvm::BasicBlock::Create(context, "mergeBB", theFunction);
+        // 3. 算左边 
+        llvm::Value* leftVal = builder.CreateICmpNE(left, builder.getInt32(0), "ifcond");
+        // 如果 A 是真，去 nextBB 算 B；如果 A 是假，直接短路飞向 falseBB
+        builder.CreateCondBr(leftVal, nextBB, falseBB);
+        // nextBB: 算右边
+        builder.SetInsertPoint(nextBB);
+        llvm::Value* rightVal = expr->right->Accept(this); // 递归算右边
+        rightVal = builder.CreateICmpNE(rightVal, builder.getInt32(0)); // 转成 bool
+        rightVal = builder.CreateZExt(rightVal, builder.getInt32Ty()); // 转成 i32
+        // 短路飞向 mergeBB
+        builder.CreateBr(mergeBB);
+        // 因为算 B 的过程中可能产生了嵌套的新房间，我们要重新定位 nextBB 的真实出口在哪！
+        nextBB = builder.GetInsertBlock();
+
+        // falseBB: 短路飞向 mergeBB
+        builder.SetInsertPoint(falseBB);
+        builder.CreateBr(mergeBB);
+        // mergeBB: 返回左右的逻辑与
+        builder.SetInsertPoint(mergeBB);
+        // 召唤 PHI 节点保安！(声明这是一个返回 i32 类型的 PHI，它有两个来源)
+        llvm::PHINode* phi = builder.CreatePHI(builder.getInt32Ty(), 2, "and_res");
+        // 告诉保安查监控的规则：
+        phi->addIncoming(rightVal, nextBB);              // 如果从 nextBB 来，值为 B 的结果
+        phi->addIncoming(builder.getInt32(0), falseBB);  // 如果从 falseBB 来，值为 0 (假)
+
+        return phi; // 把保安手里拿到的最终值，交差！
+    } else if (expr->op == "||") {
+        // 1.拿到main函数
+        llvm::Function* theFunction = builder.GetInsertBlock()->getParent();
+        // 2. 创建3个基本块
+        llvm::BasicBlock* trueBB = llvm::BasicBlock::Create(context, "trueBB", theFunction);
+        llvm::BasicBlock* nextBB = llvm::BasicBlock::Create(context, "nextBB", theFunction);
+        llvm::BasicBlock* mergeBB = llvm::BasicBlock::Create(context, "mergeBB", theFunction);
+        // 3. 算左边 
+        llvm::Value* leftVal = builder.CreateICmpNE(left, builder.getInt32(0), "ifcond");
+        // 如果 A 是真，去 trueBB, 如果 A 是假，直接短路飞向 nextBB
+        builder.CreateCondBr(leftVal, trueBB, nextBB);
+        // nextBB: 算右边
+        builder.SetInsertPoint(nextBB);
+        llvm::Value* rightVal = expr->right->Accept(this); // 递归算右边
+        rightVal = builder.CreateICmpNE(rightVal, builder.getInt32(0)); // 转成 bool
+        rightVal = builder.CreateZExt(rightVal, builder.getInt32Ty()); // 转成 i32
+        // 短路飞向 mergeBB
+        builder.CreateBr(mergeBB);
+        // 因为算 B 的过程中可能产生了嵌套的新房间，我们要重新定位 nextBB 的真实出口在哪！
+        nextBB = builder.GetInsertBlock();
+
+        // trueBB: 短路飞向 mergeBB
+        builder.SetInsertPoint(trueBB);
+        builder.CreateBr(mergeBB);
+        // mergeBB: 返回左右的逻辑与
+        builder.SetInsertPoint(mergeBB);
+        // 召唤 PHI 节点保安！(声明这是一个返回 i32 类型的 PHI，它有两个来源)
+        llvm::PHINode* phi = builder.CreatePHI(builder.getInt32Ty(), 2, "and_res");
+        // 告诉保安查监控的规则：
+        phi->addIncoming(rightVal, nextBB);              // 如果从 nextBB 来，值为 B 的结果
+        phi->addIncoming(builder.getInt32(1), trueBB);  // 如果从 trueBB 来，值为 1 (真)
+
+        return phi; // 把保安手里拿到的最终值，交差！
     }
     return nullptr;
 }
@@ -178,7 +258,7 @@ llvm::Value* CodeGen::VisitForStmt(ForStmtAst* expr) {
     llvm::BasicBlock* incBB  = llvm::BasicBlock::Create(context, "for.inc", theFunction);
     llvm::BasicBlock* lastBB = llvm::BasicBlock::Create(context, "for.last", theFunction);
 
-    // 🔴 3. 核心大招：泥瓦匠开始登记账本！
+    // 3. 核心大招：泥瓦匠开始登记账本！
     // 记下：这个 For 图纸，它的越狱房间是 lastBB，跃迁房间是 incBB
     breakBBs[expr] = lastBB;
     continueBBs[expr] = incBB;
@@ -220,7 +300,7 @@ llvm::Value* CodeGen::VisitForStmt(ForStmtAst* expr) {
     if (expr->incNode) {
         expr->incNode->Accept(this); // 比如执行 i = i + 1
     }
-    // 🔴 莫比乌斯环的物理回边：步进完，强制倒车开回 condBB！
+    // 步进完，强制倒车开回 condBB！
     builder.CreateBr(condBB);
 
     // 5. 循环造完了，打扫战场，把这本账销毁
@@ -247,7 +327,7 @@ llvm::Value* CodeGen::VisitBreakStmt(BreakStmtAst* expr) {
     // 3. 造门：砸下这扇越狱传送门
     builder.CreateBr(targetBB);
 
-    // 🔴 4. 死亡垃圾桶机制：防止死神安检员 (Verifier) 暴走
+    // 4. 死亡垃圾桶机制：防止死神安检员 (Verifier) 暴走
     llvm::Function* theFunction = builder.GetInsertBlock()->getParent();
     llvm::BasicBlock* deadBB = llvm::BasicBlock::Create(context, "break.death", theFunction);
     builder.SetInsertPoint(deadBB); // 把泥瓦匠扔进垃圾桶，后面的废话代码全部砸在这里面
@@ -266,7 +346,7 @@ llvm::Value* CodeGen::VisitContinueStmt(ContinueStmtAst* expr) {
     // 3. 造门：砸下这扇跃迁传送门
     builder.CreateBr(targetBB);
 
-    // 🔴 4. 死亡垃圾桶机制
+    // 4. 死亡垃圾桶机制
     llvm::Function* theFunction = builder.GetInsertBlock()->getParent();
     llvm::BasicBlock* deadBB = llvm::BasicBlock::Create(context, "continue.death", theFunction);
     builder.SetInsertPoint(deadBB);
