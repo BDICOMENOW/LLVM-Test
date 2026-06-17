@@ -15,6 +15,7 @@ class IfStmtAst;
 class ForStmtAst;
 class BreakStmtAst;
 class ContinueStmtAst;
+class UnaryExprAst;
 
 // 1. 访问（Visitor）接口
 // 定义了后端代码生成器必须实现的方法
@@ -31,7 +32,7 @@ class Visitor {
 	virtual llvm::Value* VisitForStmt(ForStmtAst* expr) = 0;
 	virtual llvm::Value* VisitBreakStmt(BreakStmtAst* expr) = 0;
 	virtual llvm::Value* VisitContinueStmt(ContinueStmtAst* expr) = 0;
-
+	virtual llvm::Value* VisitUnaryExpr(UnaryExprAst* expr) = 0;
 };
 
 // 存放表达式数据的基类
@@ -44,8 +45,8 @@ public:
 	// 翻译官访问自己
 	virtual llvm::Value* Accept(Visitor* vis) = 0;
 
-
-private:
+	// 是否是左值
+	bool isLValue = false;
 
 };
 // 纯虚析构函数必须提供一个定义，否则链接器会报错
@@ -71,6 +72,34 @@ public:
 
 public:
 	std::string val;
+};
+
+enum class UnaryOp {
+	deref,	// 指针解引用 *
+	addr	// 取地址 &
+};
+
+class UnaryExprAst : public ExprAst
+{
+public:
+	UnaryExprAst(UnaryOp _op, std::unique_ptr<ExprAst> _node) {
+        this->op = _op;
+        this->node = std::move(_node);
+    }
+
+	void Dump(int indent = 0) const override {
+        for (int i = 0; i < indent; ++i) std::cout << " ";
+        std::cout << "UnaryExpr: " << (op == UnaryOp::deref ? "*" : "&") << std::endl;
+        if (node) node->Dump(indent + 1);
+    }
+
+	llvm::Value* Accept(Visitor* vis) override {
+		return vis->VisitUnaryExpr(this);
+	}
+
+public:
+	UnaryOp op;
+	std::unique_ptr<ExprAst> node;
 };
 
 // 存放二元操作符节点数据 (树枝)
@@ -109,7 +138,7 @@ public:
 	~VariableDeclAst() = default;
 	void Dump(int indent = 0) const override {
 		for (int i = 0; i < indent; ++i)std::cout << " ";
-		std::cout << "VariableDecl: int" << name << std::endl;
+		std::cout << "VariableDecl: int " << name << std::endl;
 	}
 	llvm::Value* Accept(Visitor* vis) override {
 		return vis->VisitVariableDecl(this);

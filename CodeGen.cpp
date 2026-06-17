@@ -41,6 +41,76 @@ llvm::Value* CodeGen::VisitNumberExpr(NumberExprAst* expr) {
 
 // 2.遇到操作符，递归生成左右两边的代码，然后LLVM指令拼起来
 llvm::Value* CodeGen::VisitBinaryExpr(BinaryExprAst* expr) {
+    if (expr->op == "&&") {
+        // 1.拿到main函数
+        llvm::Function* theFunction = builder.GetInsertBlock()->getParent();
+        // 2. 创建3个基本块
+        llvm::BasicBlock* nextBB = llvm::BasicBlock::Create(context, "nextBB_and", theFunction);
+        llvm::BasicBlock* falseBB = llvm::BasicBlock::Create(context, "falseBB_and", theFunction);
+        llvm::BasicBlock* mergeBB = llvm::BasicBlock::Create(context, "mergeBB_and", theFunction);
+        // 3. 算左边 
+        llvm::Value* leftVal = expr->left->Accept(this); // 仅解析左侧
+        leftVal = builder.CreateICmpNE(leftVal, builder.getInt32(0), "ifcond");
+        // 如果 A 是真，去 nextBB 算 B；如果 A 是假，直接短路飞向 falseBB
+        builder.CreateCondBr(leftVal, nextBB, falseBB);
+        // nextBB: 算右边
+        builder.SetInsertPoint(nextBB);
+        llvm::Value* rightVal = expr->right->Accept(this); // 递归算右边
+        rightVal = builder.CreateICmpNE(rightVal, builder.getInt32(0)); // 转成 bool
+        rightVal = builder.CreateZExt(rightVal, builder.getInt32Ty()); // 转成 i32
+        // 短路飞向 mergeBB
+        builder.CreateBr(mergeBB);
+        // 因为算 B 的过程中可能产生了嵌套的新房间，我们要重新定位 nextBB 的真实出口在哪！
+        nextBB = builder.GetInsertBlock();
+
+        // falseBB: 短路飞向 mergeBB
+        builder.SetInsertPoint(falseBB);
+        builder.CreateBr(mergeBB);
+        // mergeBB: 返回左右的逻辑与
+        builder.SetInsertPoint(mergeBB);
+        // 召唤 PHI 节点保安！(声明这是一个返回 i32 类型的 PHI，它有两个来源)
+        llvm::PHINode* phi = builder.CreatePHI(builder.getInt32Ty(), 2, "and_res");
+        // 告诉保安查监控的规则：
+        phi->addIncoming(rightVal, nextBB);              // 如果从 nextBB 来，值为 B 的结果
+        phi->addIncoming(builder.getInt32(0), falseBB);  // 如果从 falseBB 来，值为 0 (假)
+
+        return phi; // 把保安手里拿到的最终值，交差！
+    } else if (expr->op == "||") {
+        // 1.拿到main函数
+        llvm::Function* theFunction = builder.GetInsertBlock()->getParent();
+        // 2. 创建3个基本块
+        llvm::BasicBlock* trueBB = llvm::BasicBlock::Create(context, "trueBB_or", theFunction);
+        llvm::BasicBlock* nextBB = llvm::BasicBlock::Create(context, "nextBB_or", theFunction);
+        llvm::BasicBlock* mergeBB = llvm::BasicBlock::Create(context, "mergeBB_or", theFunction);
+        // 3. 算左边 
+        llvm::Value* leftVal = expr->left->Accept(this); // 仅解析左侧
+        leftVal = builder.CreateICmpNE(leftVal, builder.getInt32(0), "ifcond");
+        // 如果 A 是真，去 trueBB, 如果 A 是假，直接短路飞向 nextBB
+        builder.CreateCondBr(leftVal, trueBB, nextBB);
+        // nextBB: 算右边
+        builder.SetInsertPoint(nextBB);
+        llvm::Value* rightVal = expr->right->Accept(this); // 递归算右边
+        rightVal = builder.CreateICmpNE(rightVal, builder.getInt32(0)); // 转成 bool
+        rightVal = builder.CreateZExt(rightVal, builder.getInt32Ty()); // 转成 i32
+        // 短路飞向 mergeBB
+        builder.CreateBr(mergeBB);
+        // 因为算 B 的过程中可能产生了嵌套的新房间，我们要重新定位 nextBB 的真实出口在哪！
+        nextBB = builder.GetInsertBlock();
+
+        // trueBB: 短路飞向 mergeBB
+        builder.SetInsertPoint(trueBB);
+        builder.CreateBr(mergeBB);
+        // mergeBB: 返回左右的逻辑或
+        builder.SetInsertPoint(mergeBB);
+        // 召唤 PHI 节点保安！(声明这是一个返回 i32 类型的 PHI，它有两个来源)
+        llvm::PHINode* phi = builder.CreatePHI(builder.getInt32Ty(), 2, "or_res");
+        // 告诉保安查监控的规则：
+        phi->addIncoming(rightVal, nextBB);              // 如果从 nextBB 来，值为 B 的结果
+        phi->addIncoming(builder.getInt32(1), trueBB);  // 如果从 trueBB 来，值为 1 (真)
+
+        return phi; // 把保安手里拿到的最终值，交差！
+    }
+
     // 递归！先让翻译官把左右两边翻译
     llvm::Value* left = expr->left->Accept(this);
     llvm::Value* right = expr->right->Accept(this);
@@ -81,73 +151,7 @@ llvm::Value* CodeGen::VisitBinaryExpr(BinaryExprAst* expr) {
         // CreateICmpEQ: Equal (等于)
         llvm::Value* cmp = builder.CreateICmpEQ(left, right, "cmptmp");
         return builder.CreateIntCast(cmp, builder.getInt32Ty(), true, "casttmp");
-    } else if (expr->op == "&&") {
-        // 1.拿到main函数
-        llvm::Function* theFunction = builder.GetInsertBlock()->getParent();
-        // 2. 创建3个基本块
-        llvm::BasicBlock* nextBB = llvm::BasicBlock::Create(context, "nextBB", theFunction);
-        llvm::BasicBlock* falseBB = llvm::BasicBlock::Create(context, "falseBB", theFunction);
-        llvm::BasicBlock* mergeBB = llvm::BasicBlock::Create(context, "mergeBB", theFunction);
-        // 3. 算左边 
-        llvm::Value* leftVal = builder.CreateICmpNE(left, builder.getInt32(0), "ifcond");
-        // 如果 A 是真，去 nextBB 算 B；如果 A 是假，直接短路飞向 falseBB
-        builder.CreateCondBr(leftVal, nextBB, falseBB);
-        // nextBB: 算右边
-        builder.SetInsertPoint(nextBB);
-        llvm::Value* rightVal = expr->right->Accept(this); // 递归算右边
-        rightVal = builder.CreateICmpNE(rightVal, builder.getInt32(0)); // 转成 bool
-        rightVal = builder.CreateZExt(rightVal, builder.getInt32Ty()); // 转成 i32
-        // 短路飞向 mergeBB
-        builder.CreateBr(mergeBB);
-        // 因为算 B 的过程中可能产生了嵌套的新房间，我们要重新定位 nextBB 的真实出口在哪！
-        nextBB = builder.GetInsertBlock();
-
-        // falseBB: 短路飞向 mergeBB
-        builder.SetInsertPoint(falseBB);
-        builder.CreateBr(mergeBB);
-        // mergeBB: 返回左右的逻辑与
-        builder.SetInsertPoint(mergeBB);
-        // 召唤 PHI 节点保安！(声明这是一个返回 i32 类型的 PHI，它有两个来源)
-        llvm::PHINode* phi = builder.CreatePHI(builder.getInt32Ty(), 2, "and_res");
-        // 告诉保安查监控的规则：
-        phi->addIncoming(rightVal, nextBB);              // 如果从 nextBB 来，值为 B 的结果
-        phi->addIncoming(builder.getInt32(0), falseBB);  // 如果从 falseBB 来，值为 0 (假)
-
-        return phi; // 把保安手里拿到的最终值，交差！
-    } else if (expr->op == "||") {
-        // 1.拿到main函数
-        llvm::Function* theFunction = builder.GetInsertBlock()->getParent();
-        // 2. 创建3个基本块
-        llvm::BasicBlock* trueBB = llvm::BasicBlock::Create(context, "trueBB", theFunction);
-        llvm::BasicBlock* nextBB = llvm::BasicBlock::Create(context, "nextBB", theFunction);
-        llvm::BasicBlock* mergeBB = llvm::BasicBlock::Create(context, "mergeBB", theFunction);
-        // 3. 算左边 
-        llvm::Value* leftVal = builder.CreateICmpNE(left, builder.getInt32(0), "ifcond");
-        // 如果 A 是真，去 trueBB, 如果 A 是假，直接短路飞向 nextBB
-        builder.CreateCondBr(leftVal, trueBB, nextBB);
-        // nextBB: 算右边
-        builder.SetInsertPoint(nextBB);
-        llvm::Value* rightVal = expr->right->Accept(this); // 递归算右边
-        rightVal = builder.CreateICmpNE(rightVal, builder.getInt32(0)); // 转成 bool
-        rightVal = builder.CreateZExt(rightVal, builder.getInt32Ty()); // 转成 i32
-        // 短路飞向 mergeBB
-        builder.CreateBr(mergeBB);
-        // 因为算 B 的过程中可能产生了嵌套的新房间，我们要重新定位 nextBB 的真实出口在哪！
-        nextBB = builder.GetInsertBlock();
-
-        // trueBB: 短路飞向 mergeBB
-        builder.SetInsertPoint(trueBB);
-        builder.CreateBr(mergeBB);
-        // mergeBB: 返回左右的逻辑与
-        builder.SetInsertPoint(mergeBB);
-        // 召唤 PHI 节点保安！(声明这是一个返回 i32 类型的 PHI，它有两个来源)
-        llvm::PHINode* phi = builder.CreatePHI(builder.getInt32Ty(), 2, "and_res");
-        // 告诉保安查监控的规则：
-        phi->addIncoming(rightVal, nextBB);              // 如果从 nextBB 来，值为 B 的结果
-        phi->addIncoming(builder.getInt32(1), trueBB);  // 如果从 trueBB 来，值为 1 (真)
-
-        return phi; // 把保安手里拿到的最终值，交差！
-    }
+    } 
     return nullptr;
 }
 
@@ -167,24 +171,28 @@ llvm::Value* CodeGen::VisitVariableAccess(VariableAccessAst* expr) {
     if (!varAddr) {
         return nullptr;
     }
-    return builder.CreateLoad(builder.getInt32Ty(), varAddr, expr->name);
-    
+    if (expr->isLValue) {
+        // 如果老板要的是坑位（比如等号左边），直接把账本里的物理坑位交上去！
+        // 绝对不能拿铁锹 Load！
+        return varAddr; 
+    } else {
+        // 如果老板要的是泥土（比如等号右边），抡起铁锹挖出来！
+        return builder.CreateLoad(builder.getInt32Ty(), varAddr, expr->name);
+    }
 }
 
 llvm::Value* CodeGen::VisitAssignExpr(AssignExprAst* expr) {
     // 1. 递归算出等号右边的数值
-    llvm::Value* rightVal = expr->right->Accept(this);
+    llvm::Value* rhs = expr->right->Accept(this);
     
-    // 2. 拿到等号左边的变量名（强转一下拿到名字）
-    VariableAccessAst* lhs = static_cast<VariableAccessAst*>(expr->left.get());
+    // 2. 拿到左边的坑位地址
+    llvm::Value* lhsAddr = expr->left->Accept(this);
+    if (!lhsAddr) return nullptr;
     
-    // 3. 从账本里查到这个变量的坑位地址
-    llvm::Value* varAddr = NamedValues[lhs->name];
-    if (!varAddr) return nullptr;
+    // 3. 把泥土砸进坑里！
+    builder.CreateStore(rhs, lhsAddr);
     
-    // 4. 生成 Store 指令：把右边的数字，死死地塞进左边的内存坑位里！
-    builder.CreateStore(rightVal, varAddr);
-    return rightVal;
+    return rhs; // 赋值表达式的结果就是赋过去的值
 }
 
 llvm::Value* CodeGen::VisitBlockStmt(BlockStmtAst* expr) {
@@ -211,9 +219,9 @@ llvm::Value* CodeGen::VisitIfStmt(IfStmtAst* expr) {
 
     // 3. 强行劈开三块内存空间 (创建三个基本块)
     // 注意：在创建的那一瞬间，它们就被挂载到 theFunction 的末尾了
-    llvm::BasicBlock* thenBB = llvm::BasicBlock::Create(context, "then", theFunction);
-    llvm::BasicBlock* elseBB = expr->elseNode ? llvm::BasicBlock::Create(context, "else", theFunction) : nullptr;
-    llvm::BasicBlock* mergeBB = llvm::BasicBlock::Create(context, "ifcont", theFunction);
+    llvm::BasicBlock* thenBB = llvm::BasicBlock::Create(context, "then_branch", theFunction);
+    llvm::BasicBlock* elseBB = expr->elseNode ? llvm::BasicBlock::Create(context, "else_branch", theFunction) : nullptr;
+    llvm::BasicBlock* mergeBB = llvm::BasicBlock::Create(context, "ifcont_branch", theFunction);
 
     // 4. 铺设道岔 (分支跳转指令)
     // 告诉 CPU：如果 condVal 为真，跳去 thenBB；否则跳去 elseBB（如果没有 else，直接跳去汇合点）
@@ -351,5 +359,33 @@ llvm::Value* CodeGen::VisitContinueStmt(ContinueStmtAst* expr) {
     llvm::BasicBlock* deadBB = llvm::BasicBlock::Create(context, "continue.death", theFunction);
     builder.SetInsertPoint(deadBB);
 
+    return nullptr;
+}
+
+llvm::Value* CodeGen::VisitUnaryExpr(UnaryExprAst* expr) 
+{
+    switch(expr->op) {
+        // 取地址 &
+        case UnaryOp::addr:{
+            expr->node->isLValue = true;
+            llvm::Value* ptrVal = expr->node->Accept(this);
+            return builder.CreatePtrToInt(ptrVal, builder.getInt32Ty(), "ptrtmp");
+        }
+        // 解引用 *
+        case UnaryOp::deref:{
+            expr->node->isLValue = false;
+            llvm::Value* val = expr->node->Accept(this);
+            llvm::Value* realPtr = builder.CreateIntToPtr(val, builder.getInt32Ty()->getPointerTo(), "realptrtmp");
+            if(expr->isLValue) {
+                return realPtr;
+            } else {
+                return builder.CreateLoad(builder.getInt32Ty(), realPtr, "dereftmp");
+            }
+            
+        }
+        default:
+            return nullptr;
+    }
+    std::cerr << "致命错误：遇到未知的一元操作符！" << std::endl;
     return nullptr;
 }

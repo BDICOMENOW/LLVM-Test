@@ -36,6 +36,9 @@ bool Parser::Consume(TokenType tokenType)
 int Parser::GetTokPrecedence()
 {
 	switch (tok.type) {
+		case TOKEN_ASSIGN:{	// '='
+			return 1;
+		}
 		case TOKEN_PIPE_PIPE:{	// '||'
 			return 2;
 		}
@@ -80,24 +83,19 @@ std::unique_ptr<ExprAst> Parser::ParseBinOpRhs(int exprPrec, std::unique_ptr<Exp
 	while (true) {
 		// 1.获取当前操作符的战斗力
 		int tokPrec = GetTokPrecedence();
-		
 		// 2.如果当前操作符的战斗力 < 我们设定的门槛，说明他该退场了
 		//  （比如当前是 0 或者 -1，直接原封不动返回 LHS）
 		if (tokPrec < exprPrec) {
 			return lHs;
 		}
-
 		// 3.稳了，这个是一个二元操作符！存下它，然后让词法分析器吃掉它
 		std::string binOp = tok.value;
 		Advance();
-
 		// 4.解析操作符右边的基础表达式
 		auto rHs = ParsePrimary();
 		if (!rHs) return nullptr;
-
 		// 5.往后偷看下一个操作符的战斗力是多少？
 		int nextPrec = GetTokPrecedence();
-
 		// 6.如果当前战斗力 < 下一个操作符的战斗力（比如当前是 +，后面是 *）
 		// 那么rHs就要被后面的高阶操作符抢走！递归调用，门槛设为tokPrec + 1
 		if (tokPrec < nextPrec) {
@@ -105,8 +103,14 @@ std::unique_ptr<ExprAst> Parser::ParseBinOpRhs(int exprPrec, std::unique_ptr<Exp
 			if (!rHs) return nullptr;
 		}
 
-		// 7.把LHS和RHS组装
-		lHs = std::make_unique<BinaryExprAst>(binOp, std::move(lHs), std::move(rHs));
+		// 如果是等号，打包成赋值表达式
+		if (binOp == "=") {
+			lHs->isLValue = true; // 向左侧节点下达指令给我物理地址
+			return std::make_unique<AssignExprAst>(std::move(lHs), std::move(rHs));
+		} else {
+			// 如果不是等号，打包成二元表达式
+			return std::make_unique<BinaryExprAst>(binOp, std::move(lHs), std::move(rHs));
+		}
 	}
 }
 
@@ -115,7 +119,7 @@ std::unique_ptr<ExprAst> Parser::ParsePrimary()
 {
 	switch (tok.type) {
 		case TOKEN_NUMBER: {
-			// 如果是数字，可能是数字
+			// 如果是数字
 			return ParserNumberExpr();
 		}
 		case TOKEN_LPAREN: {
@@ -145,6 +149,14 @@ std::unique_ptr<ExprAst> Parser::ParsePrimary()
 		case TOKEN_KW_CONTINUE: {
 			// 如果是 continue 关键字，可能是 continue 语句
 			return ParseContinueStmt();
+		}
+		case TOKEN_AMP:	// &
+		case TOKEN_MUL: //	*
+		case TOKEN_MINUS: // -
+        case TOKEN_PLUS:  // +
+		{
+			// 指针操作：解引用或者取地址
+			return ParseUnaryExpr();
 		}
 		default: {
 			cout << "语法错误，期望一个数字或左括号" << endl;
@@ -207,14 +219,7 @@ std::unique_ptr<ExprAst> Parser::ParseIdentifierExpr()
 	if(!sema.CheckVariableUse(varName)) {
 		return nullptr;
 	}
-
-	if(tok.type == TOKEN_ASSIGN) {
-		Advance(); // 吃掉赋值符 "="
-		auto rhs = ParseExpression(); // 解析等号右边的算式
-		if (!rhs) return nullptr;
-		return std::make_unique<AssignExprAst>(std::make_unique<VariableAccessAst>(varName), std::move(rhs));
-	}
-	// 如果没有等号，那就只是一个变量： aa + 1 里面的 aa
+	// 只返回变量节点
 	return std::make_unique<VariableAccessAst>(varName);
 	
 }
@@ -243,15 +248,18 @@ std::vector<std::unique_ptr<ExprAst>> Parser::ParseProgram()
 				if(!sema.CheckVariableDecl(varName)) {
 					break;
 				}
-				// 只要安检通过，就生成一个“声明节点”放进列表
+				// 仅仅只造一个声明的节点！绝不在这里处理赋值！
 				exprList.push_back(std::make_unique<VariableDeclAst>(varName));
 
-				// 如果声明时顺带赋值了 (比如 int aa = 3)
+				// 重点：如果遇到了等号，我们把当前的标识符包装成变量访问节点，
+                // 并强制将其推回给 ParseBinOpRhs 作为左手箱子！
 				if(tok.type == TOKEN_ASSIGN) {
-					Advance(); // 吃掉等号
-					auto rhs = ParseExpression(); // 解析等号右边的算式
-					exprList.push_back(std::make_unique<AssignExprAst>(
-						    std::make_unique<VariableAccessAst>(varName), std::move(rhs)));
+					auto lhsNode = std::make_unique<VariableAccessAst>(varName);
+					// 核心：处理等号和后面的表达式
+                    auto assignExpr = ParseBinOpRhs(0, std::move(lhsNode));
+                    if (assignExpr) {
+                        exprList.push_back(std::move(assignExpr));
+                    }
 				}
 			}
 			Consume(TOKEN_SEMI); // 处理完这一行，吃掉分号
@@ -417,4 +425,19 @@ std::unique_ptr<ExprAst> Parser::ParseContinueStmt() {
     }
     
     return node;
+}
+
+
+std::unique_ptr<ExprAst> Parser::ParseUnaryExpr()
+{
+	UnaryOp op;
+	// 先看看是 * 还是 &
+	if (tok.type == TOKEN_MUL) op = UnaryOp::deref;
+    else if (tok.type == TOKEN_AMP) op = UnaryOp::addr;
+	
+	Advance(); // 吃掉 * 或者 &
+	// 1.解析操作符右边的基础表达式
+	auto node = ParsePrimary();
+	if (!node) return nullptr;
+	return std::make_unique<UnaryExprAst>(op, std::move(node));
 }

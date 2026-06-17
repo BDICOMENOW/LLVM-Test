@@ -30,7 +30,11 @@ void Test(const string& inputStr)
 
 int main()
 {
-    Test("int a = 1; int b = 5; int c = a || b;");
-
+    Test(R"(    
+        int a = 10;
+        int p = &a;      
+        *p = 20;   
+        int c = *p;       
+    )");
     return 0;
 }

@@ -26,6 +26,7 @@ public:
     llvm::Value* VisitForStmt(ForStmtAst* expr) override;
     llvm::Value* VisitBreakStmt(BreakStmtAst* expr) override;
     llvm::Value* VisitContinueStmt(ContinueStmtAst* expr) override;
+    llvm::Value* VisitUnaryExpr(UnaryExprAst* expr) override;
 
     llvm::Module* GetModule() {
         return module.get();
