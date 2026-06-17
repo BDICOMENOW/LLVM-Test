@@ -14,7 +14,7 @@ public:
             std::cout<<"语义错误：变量 "<<name<<" 重复定义！"<<std::endl;
             return false;
         }
-        // 没问题，记录在符号表
+        // 没问题，，记录在符号表
         symbolTable[name] = true;
         return true;
     }
