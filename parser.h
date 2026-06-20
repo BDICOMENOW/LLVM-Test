@@ -35,6 +35,8 @@ public:
 	std::unique_ptr<ExprAst> ParseContinueStmt(); // 处理continue语句
 	std::unique_ptr<ExprAst> ParseUnaryExpr();	// 处理一元操作符
 
+	std::shared_ptr<CType> ParseType(); // 解析类型
+
 private:
 	Lexer lexer;
 	Token tok;

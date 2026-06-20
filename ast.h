@@ -2,6 +2,7 @@
 #include <memory>
 #include <string>
 #include <iostream>
+#include "Type.h"
 #include"llvm/IR/Value.h"
 
 
@@ -131,20 +132,23 @@ public:
 
 };
 
+
 class VariableDeclAst : public ExprAst
 {
 public:
-	VariableDeclAst(std::string name) :name(name) {};
+	VariableDeclAst(std::shared_ptr<CType> type,std::string name) :name(name) ,type(type){};
 	~VariableDeclAst() = default;
 	void Dump(int indent = 0) const override {
 		for (int i = 0; i < indent; ++i)std::cout << " ";
-		std::cout << "VariableDecl: int " << name << std::endl;
+		// TODO: 输出类型
+		std::cout << "VariableDecl:  "<< type->ToString() << " " << name << std::endl;
 	}
 	llvm::Value* Accept(Visitor* vis) override {
 		return vis->VisitVariableDecl(this);
 	}
 public:
 	std::string name;	// 记录名字
+	std::shared_ptr<CType> type;			// 记录类型
 };
 
 class VariableAccessAst : public ExprAst

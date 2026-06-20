@@ -123,7 +123,7 @@ std::unique_ptr<ExprAst> Parser::ParsePrimary()
 			return ParserNumberExpr();
 		}
 		case TOKEN_LPAREN: {
-			// 如果是左括号，可能是括号表达式
+			// 如果是左小括号，可能是小括号表达式
 			return ParseParenExpr();
 		}
 		case TOKEN_IDENTIFIER: {
@@ -131,7 +131,7 @@ std::unique_ptr<ExprAst> Parser::ParsePrimary()
 			return ParseIdentifierExpr();
 		}
 		case TOKEN_KW_IF: {
-			// 如果是 if 关键字，可能是 if 语句
+			// if 语句
 			return ParseIfStmt();
 		}
 		case TOKEN_LBRACE: {
@@ -139,15 +139,15 @@ std::unique_ptr<ExprAst> Parser::ParsePrimary()
 			return ParseBlockStmt();
 		}
 		case TOKEN_KW_FOR: {
-			// 如果是 for 关键字，可能是 for 语句
+			// for 语句
 			return ParseForStmt();
 		}
 		case TOKEN_KW_BREAK: {
-			// 如果是 break 关键字，可能是 break 语句
+			// break 语句
 			return ParseBreakStmt();
 		}
 		case TOKEN_KW_CONTINUE: {
-			// 如果是 continue 关键字，可能是 continue 语句
+			// continue 语句
 			return ParseContinueStmt();
 		}
 		case TOKEN_AMP:	// &
@@ -224,56 +224,77 @@ std::unique_ptr<ExprAst> Parser::ParseIdentifierExpr()
 	
 }
 
-std::vector<std::unique_ptr<ExprAst>> Parser::ParseProgram()
-{
-	std::vector<std::unique_ptr<ExprAst>> exprList;
-	while (tok.type != TOKEN_EOF) {
-		// 1.忽略多余的分号
-		if(tok.type == TOKEN_SEMI) {
-			Advance();
-			continue;
-		}
+std::shared_ptr<CType> Parser::ParseType(){
 
-		// 2. 如果遇到int，进入”变量声明“模式
-		if(tok.type == TOKEN_KW_INT) {
-			Advance(); // 吃掉int
-			
-			// 循环处理逗号分隔的变量名 aa = 3,b = 4; aa + b * 4 + 5;
-			while(tok.type != TOKEN_SEMI) {
-				if(tok.type == TOKEN_COMMA) {
-					Advance(); // 吃掉逗号
-				}
-				std::string varName = tok.value;
-				Advance(); // 吃掉变量名
-				if(!sema.CheckVariableDecl(varName)) {
-					break;
-				}
-				// 仅仅只造一个声明的节点！绝不在这里处理赋值！
-				exprList.push_back(std::make_unique<VariableDeclAst>(varName));
+	std::shared_ptr<CType> type = nullptr;
+	if(tok.type == TOKEN_KW_INT) {
+		type = std::make_shared<IntType>();
+		Advance();
+	} else {
+		return nullptr;
+	}
+	while(tok.type == TOKEN_MUL)
+	{
+		type = std::make_shared<PointerType>(type);
+		Advance();
+	}
+	return type;
+}
 
-				// 重点：如果遇到了等号，我们把当前的标识符包装成变量访问节点，
-                // 并强制将其推回给 ParseBinOpRhs 作为左手箱子！
-				if(tok.type == TOKEN_ASSIGN) {
-					auto lhsNode = std::make_unique<VariableAccessAst>(varName);
+std::vector<std::unique_ptr<ExprAst>> Parser::ParseProgram() {
+
+    std::vector<std::unique_ptr<ExprAst>> exprList;
+
+    while (tok.type != TOKEN_EOF) {
+        if (tok.type == TOKEN_SEMI) {
+            Advance();
+            continue;
+        }
+
+        // 1. 解析一下类型！
+        std::shared_ptr<CType> declType = ParseType();
+
+        // 2. 解析变量声明！
+        if (declType != nullptr) {
+            // 此时 ParseType 内部已经吃掉了 int 和 所有的 * 号！
+            // 所以现在的 tok.type 恰好就是变量名！(比如 p)
+            while (tok.type != TOKEN_SEMI) {
+                if (tok.type == TOKEN_COMMA) Advance(); 
+                std::string varName = tok.value;
+                Advance(); // 吃掉变量名
+                // 3. 检查名字，类型登记
+                if (!sema.CheckVariableDecl(varName, declType)) break;
+
+                // 4. 组装静态类型的声明
+                exprList.push_back(std::make_unique<VariableDeclAst>(declType, varName));
+				// 处理等号 '=' 后面的表达式
+                if(tok.type == TOKEN_ASSIGN) {
+                    auto lhsNode = std::make_unique<VariableAccessAst>(varName);
 					// 核心：处理等号和后面的表达式
                     auto assignExpr = ParseBinOpRhs(0, std::move(lhsNode));
                     if (assignExpr) {
                         exprList.push_back(std::move(assignExpr));
                     }
-				}
-			}
-			Consume(TOKEN_SEMI); // 处理完这一行，吃掉分号
-		} else {
-			// 3. 不是变量声明，那就是一个表达式
-			auto expr = ParseExpression();
-			if (expr) {
-				exprList.push_back(std::move(expr));
-			}
-			Consume(TOKEN_SEMI); // 吃掉行尾的分号
-		}
-	}
-	return exprList;
+                }
+            }
+            Consume(TOKEN_SEMI); 
+        } 
+        // =======================================
+        // 如果不是声明，那就是普通表达式 (例如: *p = 20; 或 a + b;)
+        // =======================================
+        else {
+            auto expr = ParseExpression();
+            if (expr) {
+                exprList.push_back(std::move(expr));
+            }
+            Consume(TOKEN_SEMI);
+        }
+    }
+
+    return exprList;
+
 }
+
 
 std::unique_ptr<ExprAst> Parser::ParseBlockStmt() {
     auto blockNode = std::make_unique<BlockStmtAst>();

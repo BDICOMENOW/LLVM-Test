@@ -157,7 +157,8 @@ llvm::Value* CodeGen::VisitBinaryExpr(BinaryExprAst* expr) {
 
 llvm::Value* CodeGen::VisitVariableDecl(VariableDeclAst* expr) {
     // 生成Alloca指令：在栈上分配32位整数（i32）空间,命名为expr->name
-    llvm::Value* alloca = builder.CreateAlloca(builder.getInt32Ty(), nullptr, expr->name);
+
+    llvm::Value* alloca = builder.CreateAlloca(expr->type->ToLLVMType(context), nullptr, expr->name);
     // 记录在 NamedValues 中
     NamedValues[expr->name] = alloca;
     return alloca;
@@ -169,15 +170,15 @@ llvm::Value* CodeGen::VisitVariableAccess(VariableAccessAst* expr) {
     // 从NamedValues（账本）里查到变量的坑位地址
     llvm::Value* varAddr = NamedValues[expr->name];
     if (!varAddr) {
+        std::cerr << "致命错误：使用了未定义的变量 " << expr->name << std::endl;
         return nullptr;
     }
     if (expr->isLValue) {
-        // 如果老板要的是坑位（比如等号左边），直接把账本里的物理坑位交上去！
-        // 绝对不能拿铁锹 Load！
+        // （比如等号左边）物理地址交上去！
         return varAddr; 
     } else {
-        // 如果老板要的是泥土（比如等号右边），抡起铁锹挖出来！
-        return builder.CreateLoad(builder.getInt32Ty(), varAddr, expr->name);
+        // （比如等号右边），返回值！
+        return builder.CreateLoad(llvm::PointerType::get(context, 0), varAddr, expr->name);
     }
 }
 
@@ -369,19 +370,17 @@ llvm::Value* CodeGen::VisitUnaryExpr(UnaryExprAst* expr)
         case UnaryOp::addr:{
             expr->node->isLValue = true;
             llvm::Value* ptrVal = expr->node->Accept(this);
-            return builder.CreatePtrToInt(ptrVal, builder.getInt32Ty(), "ptrtmp");
+            return ptrVal;
         }
         // 解引用 *
         case UnaryOp::deref:{
             expr->node->isLValue = false;
             llvm::Value* val = expr->node->Accept(this);
-            llvm::Value* realPtr = builder.CreateIntToPtr(val, builder.getInt32Ty()->getPointerTo(), "realptrtmp");
             if(expr->isLValue) {
-                return realPtr;
+                return val;
             } else {
-                return builder.CreateLoad(builder.getInt32Ty(), realPtr, "dereftmp");
+                return builder.CreateLoad(llvm::PointerType::get(context, 0), val, "dereftmp");
             }
-            
         }
         default:
             return nullptr;

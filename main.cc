@@ -21,7 +21,7 @@ void Test(const string& inputStr)
         
         cout << "\n  === 对应的 LLVM IR 机器代码 ===\n" << endl;
         CodeGen codegen;
-        codegen.Compile(nodes); // <--- 把整个程序的节点传给翻译官！
+        codegen.Compile(nodes); 
         codegen.GetModule()->print(llvm::outs(), nullptr);
         llvm::outs().flush();
         std::cout << endl;
@@ -30,11 +30,14 @@ void Test(const string& inputStr)
 
 int main()
 {
+    // 验证多级指针套娃、加载值以及以前的代码！
     Test(R"(    
         int a = 10;
-        int p = &a;      
-        *p = 20;   
-        int c = *p;       
+        int* p = &a;       
+        int** pp = &p;     
+        int*** ppp = &pp;  
+
+        ***ppp = 100;      
     )");
     return 0;
 }
