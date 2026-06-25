@@ -98,7 +98,7 @@ std::unique_ptr<ExprAst> Parser::ParseBinOpRhs(int exprPrec, std::unique_ptr<Exp
 		int nextPrec = GetTokPrecedence();
 		// 6.如果当前战斗力 < 下一个操作符的战斗力（比如当前是 +，后面是 *）
 		// 那么rHs就要被后面的高阶操作符抢走！递归调用，门槛设为tokPrec + 1
-		if (tokPrec < nextPrec) {
+		if (tokPrec < nextPrec || (binOp == "=" && tokPrec == nextPrec)) {
 			rHs = ParseBinOpRhs(tokPrec + 1, std::move(rHs));
 			if (!rHs) return nullptr;
 		}
@@ -106,10 +106,10 @@ std::unique_ptr<ExprAst> Parser::ParseBinOpRhs(int exprPrec, std::unique_ptr<Exp
 		// 如果是等号，打包成赋值表达式
 		if (binOp == "=") {
 			lHs->isLValue = true; // 向左侧节点下达指令给我物理地址
-			return std::make_unique<AssignExprAst>(std::move(lHs), std::move(rHs));
+			lHs = std::make_unique<AssignExprAst>(std::move(lHs), std::move(rHs));
 		} else {
 			// 如果不是等号，打包成二元表达式
-			return std::make_unique<BinaryExprAst>(binOp, std::move(lHs), std::move(rHs));
+			lHs = std::make_unique<BinaryExprAst>(binOp, std::move(lHs), std::move(rHs));
 		}
 	}
 }
@@ -219,6 +219,7 @@ std::unique_ptr<ExprAst> Parser::ParseIdentifierExpr()
 	if(!sema.CheckVariableUse(varName)) {
 		return nullptr;
 	}
+
 	// 只返回变量节点
 	return std::make_unique<VariableAccessAst>(varName);
 	
@@ -262,23 +263,44 @@ std::vector<std::unique_ptr<ExprAst>> Parser::ParseProgram() {
                 if (tok.type == TOKEN_COMMA) Advance(); 
                 std::string varName = tok.value;
                 Advance(); // 吃掉变量名
+
+				// 数组拦截器：吃掉变量名后，看看有没有 '['
+				std::shared_ptr<CType> actualType = declType; // 默认拿着基础图                
+                if (tok.type == TOKEN_LBRACKET) {
+                    Advance(); // 吃掉 '['
+                    if (tok.type != TOKEN_NUMBER) {
+                        std::cout << "语法错误：数组大小必须是明确的数字！" << std::endl;
+                        break;
+                    }
+                    int arrSize = std::stoi(tok.value); // 把字符串 "10" 转成整数 10
+                    Advance(); // 吃掉数字
+                    Consume(TOKEN_RBRACKET); // 吃掉 ']'
+                    
+                    // 把基础图纸包进数组图纸里！
+                    actualType = std::make_shared<ArrayType>(actualType, arrSize);
+                }
+
                 // 3. 检查名字，类型登记
-                if (!sema.CheckVariableDecl(varName, declType)) break;
+                if (!sema.CheckVariableDecl(varName, actualType)) break;
 
                 // 4. 组装静态类型的声明
-                exprList.push_back(std::make_unique<VariableDeclAst>(declType, varName));
+                exprList.push_back(std::make_unique<VariableDeclAst>(actualType, varName));
 				// 处理等号 '=' 后面的表达式
                 if(tok.type == TOKEN_ASSIGN) {
+					Advance();
+                    auto rhs = ParseExpression();
                     auto lhsNode = std::make_unique<VariableAccessAst>(varName);
-					// 核心：处理等号和后面的表达式
-                    auto assignExpr = ParseBinOpRhs(0, std::move(lhsNode));
-                    if (assignExpr) {
-                        exprList.push_back(std::move(assignExpr));
-                    }
+                    lhsNode->isLValue = true; // 赋值时标记为左值
+                    exprList.push_back(std::make_unique<AssignExprAst>(std::move(lhsNode), std::move(rhs)));
                 }
             }
             Consume(TOKEN_SEMI); 
         } 
+		// 拦截大括号
+		else if(tok.type == TOKEN_LBRACE) {
+			auto blockNode = ParseBlockStmt();
+            if (blockNode) exprList.push_back(std::move(blockNode));
+		}
         // =======================================
         // 如果不是声明，那就是普通表达式 (例如: *p = 20; 或 a + b;)
         // =======================================
@@ -298,6 +320,8 @@ std::vector<std::unique_ptr<ExprAst>> Parser::ParseProgram() {
 
 std::unique_ptr<ExprAst> Parser::ParseBlockStmt() {
     auto blockNode = std::make_unique<BlockStmtAst>();
+
+	sema.EnterScope();
     
     // 1. 进门：吃掉 '{'
     if (tok.type == TOKEN_LBRACE) {
@@ -307,20 +331,58 @@ std::unique_ptr<ExprAst> Parser::ParseBlockStmt() {
     // 2. 疯狂解析里面的语句，直到遇到 '}'
     while (tok.type != TOKEN_RBRACE && tok.type != TOKEN_EOF) {
         
-        // 【防线 1】：忽略开头或多余的空分号（比如连续写了多个 ;;）
-        if (tok.type == TOKEN_SEMI) {
-            Advance();
-            continue;
-        }
+        // 在大括号里获取类型
+        std::shared_ptr<CType> declType = ParseType(); 
         
-        auto stmt = ParseExpression(); 
-        if (stmt) {
-            blockNode->stmtVec.push_back(std::move(stmt));
-        }
+        if (declType != nullptr) {
+            // 拿到类型了，说明这是局部变量声明 (如 int a = 2;)
+            while (tok.type != TOKEN_SEMI) {
+                if (tok.type == TOKEN_COMMA) Advance();
+                
+                std::string varName = tok.value;
+                Advance(); // 吃掉变量名
 
-        // 解析完一条表达式后，如果末尾有分号，必须吃掉清理！
-        if (tok.type == TOKEN_SEMI) {
-            Advance();
+				// 数组拦截器：吃掉变量名后，看看有没有 '['
+				std::shared_ptr<CType> actualType = declType; // 默认拿着基础图                
+                if (tok.type == TOKEN_LBRACKET) {
+                    Advance(); // 吃掉 '['
+                    if (tok.type != TOKEN_NUMBER) {
+                        std::cout << "语法错误：数组大小必须是明确的数字！" << std::endl;
+                        break;
+                    }
+                    int arrSize = std::stoi(tok.value); // 把字符串 "10" 转成整数 10
+                    Advance(); // 吃掉数字
+                    Consume(TOKEN_RBRACKET); // 吃掉 ']'
+                    
+                    // 神奇的物理升维：把基础图纸包进阵列图纸里！
+                    actualType = std::make_shared<ArrayType>(actualType, arrSize);
+                }
+
+                if (!sema.CheckVariableDecl(varName, actualType)) break;
+                
+                blockNode->stmtVec.push_back(std::make_unique<VariableDeclAst>(actualType, varName));
+                
+                if (tok.type == TOKEN_ASSIGN) {
+                    Advance();
+                    auto rhs = ParseExpression();
+                    auto lhsNode = std::make_unique<VariableAccessAst>(varName);
+                    lhsNode->isLValue = true; // 坑位锁定
+                    blockNode->stmtVec.push_back(std::make_unique<AssignExprAst>(std::move(lhsNode), std::move(rhs)));
+                }
+            }
+            Consume(TOKEN_SEMI);
+        } 
+		// 拦截大括号
+		else if(tok.type == TOKEN_LBRACE) {
+			auto stmt = ParseBlockStmt();
+            if (stmt) blockNode->stmtVec.push_back(std::move(stmt));
+		}
+		// 表达式
+		else {
+            // 普通表达式 (如 *p = a + b;)
+            auto stmt = ParseExpression();
+            if (stmt) blockNode->stmtVec.push_back(std::move(stmt));
+            if (tok.type == TOKEN_SEMI) Advance();
         }
     }
 
@@ -329,6 +391,7 @@ std::unique_ptr<ExprAst> Parser::ParseBlockStmt() {
         Advance(); 
     }
 
+	sema.ExitScope();
     return blockNode; // 组装完毕，交出大括号图纸
 }
 

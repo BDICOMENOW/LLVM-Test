@@ -30,14 +30,10 @@ void Test(const string& inputStr)
 
 int main()
 {
-    // 验证多级指针套娃、加载值以及以前的代码！
     Test(R"(    
-        int a = 10;
-        int* p = &a;       
-        int** pp = &p;     
-        int*** ppp = &pp;  
-
-        ***ppp = 100;      
+    {
+        int arr[10];
+    }
     )");
     return 0;
 }

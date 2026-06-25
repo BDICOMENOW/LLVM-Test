@@ -8,7 +8,8 @@
 // 静态类型系统基础：种类枚举
 enum class TypeKind {
     INT,
-    POINTER
+    POINTER,
+    ARRAY, // 数组
 };
 
 // ==========================================================
@@ -64,10 +65,27 @@ public:
     }
     
     llvm::Type* ToLLVMType(llvm::LLVMContext& context) const  {
-        // 采用 Opaque Pointers (不透明指针)
+        
         // 所有指针统一返回 ptr 类型，不再区分 i32* 还是 i32**。
         // 因此这里直接返回 llvm::Type::getPointerType
         
         return llvm::PointerType::get(context, 0);
+    }
+};
+
+class ArrayType : public CType {
+public:
+    std::shared_ptr<CType> elementType;
+    int numElements;
+
+public:
+    ArrayType(std::shared_ptr<CType> elementType, int numElements) : elementType(elementType), numElements(numElements) {};
+    TypeKind GetKind() const override { return TypeKind::ARRAY; }
+    std::string ToString() const  {
+        return elementType->ToString() + "[" + std::to_string(numElements) + "]";
+    }
+    llvm::Type* ToLLVMType(llvm::LLVMContext& context) const  {
+        // 指定元素类型和元素个数
+        return llvm::ArrayType::get(elementType->ToLLVMType(context), numElements); 
     }
 };

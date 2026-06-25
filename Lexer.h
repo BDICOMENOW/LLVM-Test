@@ -34,6 +34,8 @@ enum TokenType {
 	TOKEN_KW_CONTINUE, // 新增：continue 关键字
 	TOKEN_LBRACE,   // 新增：左大括号 {
 	TOKEN_RBRACE,   // 新增：右大括号 }
+	TOKEN_LBRACKET, // 新增：左中括号 [
+    TOKEN_RBRACKET, // 新增：右中括号 ]
 	TOKEN_EOF,
 	TOKEN_ERROR
 };

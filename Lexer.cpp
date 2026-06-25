@@ -107,6 +107,20 @@ Token Lexer::GetNextToken()
                 pos++;
                 break;
             }
+            // 判断左中括号
+            case '[': {
+                tok.type = TOKEN_LBRACKET;
+                tok.value = "[";
+                pos++;
+                break;
+            }
+            // 判断右中括号
+            case ']': {
+                tok.type = TOKEN_RBRACKET;
+                tok.value = "]";
+                pos++;
+                break;
+            }
             // 判断赋值符号 = 或者 比较符号 ==
             case '=': {
                 // 探头往后多看一眼，如果是 ==

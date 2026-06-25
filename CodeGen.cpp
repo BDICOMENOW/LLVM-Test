@@ -166,6 +166,7 @@ llvm::Value* CodeGen::VisitVariableDecl(VariableDeclAst* expr) {
 }
     
 
+
 llvm::Value* CodeGen::VisitVariableAccess(VariableAccessAst* expr) {
     // 从NamedValues（账本）里查到变量的坑位地址
     llvm::Value* varAddr = NamedValues[expr->name];
@@ -177,8 +178,9 @@ llvm::Value* CodeGen::VisitVariableAccess(VariableAccessAst* expr) {
         // （比如等号左边）物理地址交上去！
         return varAddr; 
     } else {
-        // （比如等号右边），返回值！
-        return builder.CreateLoad(llvm::PointerType::get(context, 0), varAddr, expr->name);
+        // （比如等号右边），返回值！, 动态获取这个坑位当初挖的时候是什么类型 (getAllocatedType)！
+        llvm::Type* allocTy = llvm::cast<llvm::AllocaInst>(varAddr)->getAllocatedType();
+        return builder.CreateLoad(allocTy, varAddr, expr->name);
     }
 }
 
