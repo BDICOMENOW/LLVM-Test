@@ -12,7 +12,7 @@ enum TokenType {
 	TOKEN_MOD,
 	TOKEN_LPAREN,	// 左括号 (
 	TOKEN_RPAREN,	// 右括号 )
-	TOKEN_IDENTIFIER, // 标识符
+	TOKEN_IDENTIFIER, // 标识符( 变量名 )
 	TOKEN_KW_INT,	// int关键字
 	TOKEN_ASSIGN,	// 赋值符：=
 	TOKEN_EQUAL_EQUAL, // 相等判断：==

@@ -390,3 +390,43 @@ llvm::Value* CodeGen::VisitUnaryExpr(UnaryExprAst* expr)
     std::cerr << "致命错误：遇到未知的一元操作符！" << std::endl;
     return nullptr;
 }
+
+llvm::Value* CodeGen::VisitArrayAccess(ArrayAccessAst* expr) {
+    // 1. 找到基地址
+    llvm::Value* varAddr = NamedValues[expr->arrayName];
+    if (!varAddr) {
+        std::cout << "致命错误：阵列 " << expr->arrayName << " 未定义！" << std::endl;
+        return nullptr;
+    }
+
+    // 2. 查图纸：确认这块地皮当初是怎么批的（拿到 [10 x i32] 图纸）
+    llvm::Type* allocTy = llvm::cast<llvm::AllocaInst>(varAddr)->getAllocatedType();
+
+    // 3. 执行偏移量计算（算出中括号里的算式，比如 i+1 的结果）
+    llvm::Value* indexVal = expr->indexExpr->Accept(this);
+    if (!indexVal) return nullptr;
+
+    // =======================================================
+    // 4. GEP (GetElementPtr) 算坐标！
+    // LLVM 的硬性规定：对于 Alloca 出来的数组，必须传两个参数：
+    // 参数 0：表示“推开大门，进入这块地皮本身”。(builder.getInt32(0))
+    // 参数 1：表示“进去之后，往前走几个坑”。(indexVal)
+    // =======================================================
+    std::vector<llvm::Value*> indices;
+    indices.push_back(builder.getInt32(0)); 
+    indices.push_back(indexVal);
+    
+    // 启动 GPS 定位，算出精确的坑位物理地址！
+    llvm::Value* elementPtr = builder.CreateGEP(allocTy, varAddr, indices, "gep_tmp");
+
+    // 5. 选择：要地址？还是要里面的值？
+    if (expr->isLValue) {
+        // 如果它在等号左边 (例如 arr[2] = 99)，它需要的是坑的物理地址！
+        return elementPtr; 
+    } else {
+        // 如果它在等号右边 (例如 x = arr[2])，我们需要用铁锹把值挖出来！
+        // 铁锹需要知道单个元素的大小，直接拿即可：getArrayElementType()
+        llvm::Type* elementType = allocTy->getArrayElementType();
+        return builder.CreateLoad(elementType, elementPtr, "load_tmp");
+    }
+}

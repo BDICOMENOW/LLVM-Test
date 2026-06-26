@@ -30,10 +30,14 @@ void Test(const string& inputStr)
 
 int main()
 {
+    
     Test(R"(    
     {
         int arr[10];
+        arr[2] = 99;
+        int x = arr[2] + 1;
     }
     )");
+    
     return 0;
 }

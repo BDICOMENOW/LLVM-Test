@@ -220,6 +220,20 @@ std::unique_ptr<ExprAst> Parser::ParseIdentifierExpr()
 		return nullptr;
 	}
 
+	// 看看是不是数组,名字后面紧跟着 '['
+	if (tok.type == TOKEN_LBRACKET) {
+        Advance(); // 吃掉 '['
+        
+        // 递归：把中括号里面的东西，当成一个完整的算式去解析！
+        auto indexNode = ParseExpression(); 
+        if (!indexNode) return nullptr;
+        
+        Consume(TOKEN_RBRACKET); // 吃掉 ']'
+
+        // 把基地址和偏移量树，装进你刚才设计的纸箱子里！
+        return std::make_unique<ArrayAccessAst>(varName, std::move(indexNode));
+    }
+
 	// 只返回变量节点
 	return std::make_unique<VariableAccessAst>(varName);
 	

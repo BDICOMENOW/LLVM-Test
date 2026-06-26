@@ -17,6 +17,7 @@ class ForStmtAst;
 class BreakStmtAst;
 class ContinueStmtAst;
 class UnaryExprAst;
+class ArrayAccessAst;
 
 // 1. 访问（Visitor）接口
 // 定义了后端代码生成器必须实现的方法
@@ -34,6 +35,7 @@ class Visitor {
 	virtual llvm::Value* VisitBreakStmt(BreakStmtAst* expr) = 0;
 	virtual llvm::Value* VisitContinueStmt(ContinueStmtAst* expr) = 0;
 	virtual llvm::Value* VisitUnaryExpr(UnaryExprAst* expr) = 0;
+	virtual llvm::Value* VisitArrayAccess(ArrayAccessAst* expr) = 0;
 };
 
 // 存放表达式数据的基类
@@ -317,4 +319,24 @@ public:
 	ExprAst* target = nullptr; // 寻路指针
 };
 
+// 数组寻址
+class ArrayAccessAst : public ExprAst {
+public:
+	std::string arrayName;				// 数组名
+	std::unique_ptr<ExprAst> indexExpr;	// 偏移量
+
+	ArrayAccessAst(std::string arrayName, std::unique_ptr<ExprAst> indexExpr)
+		: arrayName(arrayName), indexExpr(std::move(indexExpr)) {}
+	~ArrayAccessAst() = default;
+
+	void Dump(int indent = 0) const override {
+		for (int i = 0; i < indent; ++i) std::cout << " ";
+		std::cout << "ArrayAccess: " << arrayName <<"[]"<< std::endl;
+		if (indexExpr) { indexExpr->Dump(indent + 1); }
+	}
+
+	llvm::Value* Accept(Visitor* vis) override {
+		return vis->VisitArrayAccess(this);
+	}
+};
 
