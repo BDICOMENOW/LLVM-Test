@@ -33,9 +33,11 @@ int main()
     
     Test(R"(    
     {
-        int arr[10];
-        arr[2] = 99;
-        int x = arr[2] + 1;
+        
+        int a = 0;
+        for(int i = 0; i < 5; i++) {
+            a+=i;
+        }
     }
     )");
     

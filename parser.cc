@@ -36,6 +36,8 @@ bool Parser::Consume(TokenType tokenType)
 int Parser::GetTokPrecedence()
 {
 	switch (tok.type) {
+        case TOKEN_PLUS_EQUAL:	// '+='
+        case TOKEN_MINUS_EQUAL:	// '-='
 		case TOKEN_ASSIGN:{	// '='
 			return 1;
 		}
@@ -104,9 +106,9 @@ std::unique_ptr<ExprAst> Parser::ParseBinOpRhs(int exprPrec, std::unique_ptr<Exp
 		}
 
 		// 如果是等号，打包成赋值表达式
-		if (binOp == "=") {
+		if (binOp == "=" || binOp == "+=" || binOp == "-=") {
 			lHs->isLValue = true; // 向左侧节点下达指令给我物理地址
-			lHs = std::make_unique<AssignExprAst>(std::move(lHs), std::move(rHs));
+			lHs = std::make_unique<AssignExprAst>(binOp, std::move(lHs), std::move(rHs));
 		} else {
 			// 如果不是等号，打包成二元表达式
 			lHs = std::make_unique<BinaryExprAst>(binOp, std::move(lHs), std::move(rHs));
@@ -154,6 +156,8 @@ std::unique_ptr<ExprAst> Parser::ParsePrimary()
 		case TOKEN_MUL: //	*
 		case TOKEN_MINUS: // -
         case TOKEN_PLUS:  // +
+        case TOKEN_PLUS_PLUS: // ++
+        case TOKEN_MINUS_MINUS: // --
 		{
 			// 指针操作：解引用或者取地址
 			return ParseUnaryExpr();
@@ -220,22 +224,45 @@ std::unique_ptr<ExprAst> Parser::ParseIdentifierExpr()
 		return nullptr;
 	}
 
-	// 看看是不是数组,名字后面紧跟着 '['
-	if (tok.type == TOKEN_LBRACKET) {
+	// 1. 造出最基础的VariableAccessAst，并去 Sema 查找变量类型
+    std::unique_ptr<ExprAst> leftNode = std::make_unique<VariableAccessAst>(varName);
+    leftNode->exprType = sema.GetVariableType(varName); 
+
+    // ==========================================
+    // 处理数组 ：支持 arr[1][2][3]...
+    // ==========================================
+    while (tok.type == TOKEN_LBRACKET) {
         Advance(); // 吃掉 '['
-        
-        // 递归：把中括号里面的东西，当成一个完整的算式去解析！
         auto indexNode = ParseExpression(); 
         if (!indexNode) return nullptr;
-        
         Consume(TOKEN_RBRACKET); // 吃掉 ']'
 
-        // 把基地址和偏移量树，装进你刚才设计的纸箱子里！
-        return std::make_unique<ArrayAccessAst>(varName, std::move(indexNode));
+        // 把旧箱子塞进新箱子
+        auto arrayNode = std::make_unique<ArrayAccessAst>(std::move(leftNode), std::move(indexNode));
+        
+        // 撕开外层大箱子的图纸，把里面那一层的图纸贴在新箱子上！
+        if (arrayNode->left->exprType->GetKind() == TypeKind::ARRAY) {
+            auto arrTy = std::static_pointer_cast<ArrayType>(arrayNode->left->exprType);
+            arrayNode->exprType = arrTy->elementType;
+        } else {
+            std::cout << "语法错误：只有数组类型才能用 [] 寻址！" << std::endl;
+            return nullptr;
+        }
+        
+        // 准备迎接下一个 '['
+        leftNode = std::move(arrayNode); 
     }
 
-	// 只返回变量节点
-	return std::make_unique<VariableAccessAst>(varName);
+    // 2. 解析后缀操作符
+    if(tok.type == TOKEN_PLUS_PLUS) {
+        Advance();
+        leftNode = std::make_unique<PostIncExprAst>(std::move(leftNode));
+    } else if(tok.type == TOKEN_MINUS_MINUS) {
+        Advance();
+        leftNode = std::make_unique<PostDecExprAst>(std::move(leftNode));
+    }
+
+    return leftNode;
 	
 }
 
@@ -280,18 +307,24 @@ std::vector<std::unique_ptr<ExprAst>> Parser::ParseProgram() {
 
 				// 数组拦截器：吃掉变量名后，看看有没有 '['
 				std::shared_ptr<CType> actualType = declType; // 默认拿着基础图                
-                if (tok.type == TOKEN_LBRACKET) {
+                std::vector<int> dimensions; // 记下所有的维度
+
+                // 1. 疯狂吃掉所有的中括号和数字
+                while (tok.type == TOKEN_LBRACKET) {
                     Advance(); // 吃掉 '['
                     if (tok.type != TOKEN_NUMBER) {
                         std::cout << "语法错误：数组大小必须是明确的数字！" << std::endl;
                         break;
                     }
-                    int arrSize = std::stoi(tok.value); // 把字符串 "10" 转成整数 10
+                    dimensions.push_back(std::stoi(tok.value)); // 记下维度
                     Advance(); // 吃掉数字
                     Consume(TOKEN_RBRACKET); // 吃掉 ']'
-                    
-                    // 把基础图纸包进数组图纸里！
-                    actualType = std::make_shared<ArrayType>(actualType, arrSize);
+                }
+
+                // 2. 物理图纸折叠：必须从内向外（倒序）包转！
+                // 对于 int arr[3][4]，先包 4，再包 3。最终图纸变成 [3 x [4 x i32]]
+                for (int i = dimensions.size() - 1; i >= 0; --i) {
+                    actualType = std::make_shared<ArrayType>(actualType, dimensions[i]);
                 }
 
                 // 3. 检查名字，类型登记
@@ -305,7 +338,7 @@ std::vector<std::unique_ptr<ExprAst>> Parser::ParseProgram() {
                     auto rhs = ParseExpression();
                     auto lhsNode = std::make_unique<VariableAccessAst>(varName);
                     lhsNode->isLValue = true; // 赋值时标记为左值
-                    exprList.push_back(std::make_unique<AssignExprAst>(std::move(lhsNode), std::move(rhs)));
+                    exprList.push_back(std::make_unique<AssignExprAst>("=", std::move(lhsNode), std::move(rhs)));
                 }
             }
             Consume(TOKEN_SEMI); 
@@ -358,18 +391,24 @@ std::unique_ptr<ExprAst> Parser::ParseBlockStmt() {
 
 				// 数组拦截器：吃掉变量名后，看看有没有 '['
 				std::shared_ptr<CType> actualType = declType; // 默认拿着基础图                
-                if (tok.type == TOKEN_LBRACKET) {
+                std::vector<int> dimensions; // 拿个小本本，记下所有的维度
+
+                // 1. 疯狂吃掉所有的中括号和数字
+                while (tok.type == TOKEN_LBRACKET) {
                     Advance(); // 吃掉 '['
                     if (tok.type != TOKEN_NUMBER) {
                         std::cout << "语法错误：数组大小必须是明确的数字！" << std::endl;
                         break;
                     }
-                    int arrSize = std::stoi(tok.value); // 把字符串 "10" 转成整数 10
+                    dimensions.push_back(std::stoi(tok.value)); // 记下维度
                     Advance(); // 吃掉数字
                     Consume(TOKEN_RBRACKET); // 吃掉 ']'
-                    
-                    // 神奇的物理升维：把基础图纸包进阵列图纸里！
-                    actualType = std::make_shared<ArrayType>(actualType, arrSize);
+                }
+
+                // 2. 物理图纸折叠：必须从内向外（倒序）包转！
+                // 对于 int arr[3][4]，先包 4，再包 3。最终图纸变成 [3 x [4 x i32]]
+                for (int i = dimensions.size() - 1; i >= 0; --i) {
+                    actualType = std::make_shared<ArrayType>(actualType, dimensions[i]);
                 }
 
                 if (!sema.CheckVariableDecl(varName, actualType)) break;
@@ -381,7 +420,7 @@ std::unique_ptr<ExprAst> Parser::ParseBlockStmt() {
                     auto rhs = ParseExpression();
                     auto lhsNode = std::make_unique<VariableAccessAst>(varName);
                     lhsNode->isLValue = true; // 坑位锁定
-                    blockNode->stmtVec.push_back(std::make_unique<AssignExprAst>(std::move(lhsNode), std::move(rhs)));
+                    blockNode->stmtVec.push_back(std::make_unique<AssignExprAst>("=", std::move(lhsNode), std::move(rhs)));
                 }
             }
             Consume(TOKEN_SEMI);
@@ -449,12 +488,56 @@ std::unique_ptr<ExprAst> Parser::ParseForStmt() {
     Advance(); // 吃掉 for
     Consume(TOKEN_LPAREN); // 吃掉 (
 
-    // 1. 初始化表达式 (例如 i = 0)
+    // 分流变量声明和普通表达式（例如：int i = 0;或者 i = 0;）
     std::unique_ptr<ExprAst> initNode = nullptr;
-    if (tok.type != TOKEN_SEMI) {
+    // 专门留一个临时的位置用来接住声明节点
+    std::unique_ptr<ExprAst> declNode = nullptr; 
+    // 1. for循环初始条件是变量声明,发现 int 关键字，走局部声明逻辑
+    // 例如 for(int i = 0; i < 5; i++) 
+    if(tok.type == TOKEN_KW_INT) {
+        std::shared_ptr<CType> declType = ParseType();
+        if(declType != nullptr) {
+            std::string varName = tok.value;
+            Advance(); // 吃掉变量名
+
+            // 数组拦截器：吃掉变量名后，看看有没有 '['
+            std::shared_ptr<CType> actualType = declType; // 默认拿着基础图                
+            std::vector<int> dimensions; // 记下所有的维度
+
+            // 1. 疯狂吃掉所有的中括号和数字
+            while (tok.type == TOKEN_LBRACKET) {
+                Advance(); // 吃掉 '['
+                dimensions.push_back(std::stoi(tok.value));
+                Advance(); // 吃掉数字
+                Consume(TOKEN_RBRACKET); // 吃掉 ']'
+            }
+
+            for(int i = dimensions.size() - 1; i >= 0; --i) {
+                actualType = std::make_shared<ArrayType>(actualType, dimensions[i]);
+            }
+            // 登记符号表
+            if(sema.CheckVariableDecl(varName, actualType)) {
+                // 无论有没有等号赋值，都必须先给它建一个声明节点纸！
+                declNode = std::make_unique<VariableDeclAst>(actualType, varName);
+                // 如果带有初始化赋值，比如 int i = 0
+                if(tok.type == TOKEN_ASSIGN) {
+                    Advance(); // 吃掉 =
+                    auto rhs = ParseExpression();
+                    auto lhsNode = std::make_unique<VariableAccessAst>(varName);
+                    lhsNode->isLValue = true; // 坑位锁定
+                    // 这里注意：打包成一个 AssignExprAst 节点返回给 initNode
+                    initNode = std::make_unique<AssignExprAst>("=", std::move(lhsNode), std::move(rhs));
+                } 
+            }
+        }
+    }
+    // 2. for循环初始条件是表达式，走普通表达式逻辑
+    // 例如 for(i = 0; i < 5; i++)
+    else if (tok.type != TOKEN_SEMI) {
         initNode = ParseExpression();
     }
     Consume(TOKEN_SEMI); // 吃掉第一个 ;
+
 
     // 2. 条件表达式 (例如 i < 100)
     std::unique_ptr<ExprAst> condNode = nullptr;
@@ -491,6 +574,15 @@ std::unique_ptr<ExprAst> Parser::ParseForStmt() {
     // 退出这个循环了，我不再是后面代码的爹了。
     breakNodes.pop_back();
     continueNodes.pop_back();
+
+    // 如果刚才生成了 declNode（说明用户写的是 for(int i=0;...)）
+    if (declNode != nullptr) {
+        // 在最外面套一个虚构的局部大括号块 (BlockStmtAst)
+        auto blockWrapper = std::make_unique<BlockStmtAst>();
+        blockWrapper->stmtVec.push_back(std::move(declNode)); // 第一步：执行 int i; 的声明
+        blockWrapper->stmtVec.push_back(std::move(forNode));  // 第二步：执行 for 循环本身
+        return blockWrapper; // 完美收工，向上提交！
+    }
 
     return forNode;
 }
@@ -532,8 +624,10 @@ std::unique_ptr<ExprAst> Parser::ParseUnaryExpr()
 	// 先看看是 * 还是 &
 	if (tok.type == TOKEN_MUL) op = UnaryOp::deref;
     else if (tok.type == TOKEN_AMP) op = UnaryOp::addr;
+    else if (tok.type == TOKEN_PLUS_PLUS) op = UnaryOp::plus_plus;
+    else if (tok.type == TOKEN_MINUS_MINUS) op = UnaryOp::minus_minus;
 	
-	Advance(); // 吃掉 * 或者 &
+	Advance(); // 吃掉 * , & , ++ , --
 	// 1.解析操作符右边的基础表达式
 	auto node = ParsePrimary();
 	if (!node) return nullptr;

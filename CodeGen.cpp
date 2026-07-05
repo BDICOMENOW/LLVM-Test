@@ -188,14 +188,27 @@ llvm::Value* CodeGen::VisitAssignExpr(AssignExprAst* expr) {
     // 1. 递归算出等号右边的数值
     llvm::Value* rhs = expr->right->Accept(this);
     
-    // 2. 拿到左边的坑位地址
+    // 2. 拿到左边的地址
     llvm::Value* lhsAddr = expr->left->Accept(this);
     if (!lhsAddr) return nullptr;
     
-    // 3. 把泥土砸进坑里！
-    builder.CreateStore(rhs, lhsAddr);
-    
-    return rhs; // 赋值表达式的结果就是赋过去的值
+    // 3. 根据操作符分类处理
+    if(expr->op == "=") {
+        builder.CreateStore(rhs, lhsAddr);
+        return rhs; // 赋值表达式的结果就是赋过去的值
+    } else {
+        // 处理 += -= 等等
+        llvm::Type* leftTy = expr->left->exprType->ToLLVMType(context);
+        llvm::Value* oldVal = builder.CreateLoad(leftTy, lhsAddr, "loadtmp");
+        llvm::Value* newVal = nullptr;
+        if(expr->op == "+=") {
+            newVal = builder.CreateAdd(oldVal, rhs, "addtmp");
+        } else if(expr->op == "-=") {
+            newVal = builder.CreateSub(oldVal, rhs, "subtmp");
+        }
+        builder.CreateStore(newVal, lhsAddr);
+        return newVal;
+    }
 }
 
 llvm::Value* CodeGen::VisitBlockStmt(BlockStmtAst* expr) {
@@ -384,6 +397,28 @@ llvm::Value* CodeGen::VisitUnaryExpr(UnaryExprAst* expr)
                 return builder.CreateLoad(llvm::PointerType::get(context, 0), val, "dereftmp");
             }
         }
+        // 前置 ++
+        case UnaryOp::plus_plus:{
+            expr->node->isLValue = true; // 指定为左值
+            llvm::Value* ptrVal = expr->node->Accept(this);
+            llvm::Type* ptrTy = expr->node->exprType->ToLLVMType(context);
+
+            llvm::Value* oldVal = builder.CreateLoad(ptrTy, ptrVal, "loadtmp");
+            llvm::Value* newVal = builder.CreateAdd(oldVal, builder.getInt32(1), "inctmp");
+            builder.CreateStore(newVal, ptrVal);
+            return newVal;
+        }
+        // 前置 --
+        case UnaryOp::minus_minus:{
+            expr->node->isLValue = true; // 指定为左值
+            llvm::Value* ptrVal = expr->node->Accept(this);
+            llvm::Type* ptrTy = expr->node->exprType->ToLLVMType(context);
+
+            llvm::Value* oldVal = builder.CreateLoad(ptrTy, ptrVal, "loadtmp");
+            llvm::Value* newVal = builder.CreateSub(oldVal, builder.getInt32(1), "inctmp");
+            builder.CreateStore(newVal, ptrVal);
+            return newVal;
+        }
         default:
             return nullptr;
     }
@@ -392,41 +427,61 @@ llvm::Value* CodeGen::VisitUnaryExpr(UnaryExprAst* expr)
 }
 
 llvm::Value* CodeGen::VisitArrayAccess(ArrayAccessAst* expr) {
-    // 1. 找到基地址
-    llvm::Value* varAddr = NamedValues[expr->arrayName];
-    if (!varAddr) {
-        std::cout << "致命错误：阵列 " << expr->arrayName << " 未定义！" << std::endl;
-        return nullptr;
-    }
 
-    // 2. 查图纸：确认这块地皮当初是怎么批的（拿到 [10 x i32] 图纸）
-    llvm::Type* allocTy = llvm::cast<llvm::AllocaInst>(varAddr)->getAllocatedType();
-
-    // 3. 执行偏移量计算（算出中括号里的算式，比如 i+1 的结果）
-    llvm::Value* indexVal = expr->indexExpr->Accept(this);
-    if (!indexVal) return nullptr;
-
-    // =======================================================
-    // 4. GEP (GetElementPtr) 算坐标！
-    // LLVM 的硬性规定：对于 Alloca 出来的数组，必须传两个参数：
-    // 参数 0：表示“推开大门，进入这块地皮本身”。(builder.getInt32(0))
-    // 参数 1：表示“进去之后，往前走几个坑”。(indexVal)
-    // =======================================================
-    std::vector<llvm::Value*> indices;
-    indices.push_back(builder.getInt32(0)); 
-    indices.push_back(indexVal);
+    expr->left->isLValue = true;
     
-    // 启动 GPS 定位，算出精确的坑位物理地址！
-    llvm::Value* elementPtr = builder.CreateGEP(allocTy, varAddr, indices, "gep_tmp");
+    // 1. 递归找大门！(如果是 arr[1][2]，这里会先算出 arr[1] 的物理地址！)
+    llvm::Value* basePtr = expr->left->Accept(this);
+    if (!basePtr) return nullptr;
 
-    // 5. 选择：要地址？还是要里面的值？
+    // 2. 算出类型
+    llvm::Type* baseAllocTy = expr->left->exprType->ToLLVMType(context);
+
+    // 3. 算出偏移量
+    llvm::Value* indexVal = expr->indexExpr->Accept(this);
+
+    // 4. GEP 寻址（传两个坐标）
+    std::vector<llvm::Value*> indices;
+    indices.push_back(builder.getInt32(0)); // 当前入口
+    indices.push_back(indexVal);            // 当前索引
+    llvm::Value* elementPtr = builder.CreateGEP(baseAllocTy, basePtr, indices, "gep_tmp");
+
+    // 5. 读写判定
     if (expr->isLValue) {
-        // 如果它在等号左边 (例如 arr[2] = 99)，它需要的是坑的物理地址！
-        return elementPtr; 
+        return elementPtr; // 被赋值，直接返回算出的物理地址
     } else {
-        // 如果它在等号右边 (例如 x = arr[2])，我们需要用铁锹把值挖出来！
-        // 铁锹需要知道单个元素的大小，直接拿即可：getArrayElementType()
-        llvm::Type* elementType = allocTy->getArrayElementType();
-        return builder.CreateLoad(elementType, elementPtr, "load_tmp");
+        // 如果还是一个ArrayType，说明是数组退化
+        // 不要 load, 把地址直接传给上层
+        if (expr->exprType->GetKind() == TypeKind::ARRAY) {
+            return elementPtr; 
+        } else {
+            // 只有当前图纸是普通类型（比如 int），我们才狠狠地一铁锹挖下去！
+            llvm::Type* elementType = expr->exprType->ToLLVMType(context);
+            return builder.CreateLoad(elementType, elementPtr, "load_tmp");
+        }
     }
 }
+
+llvm::Value* CodeGen::VisitPostIncExpr(PostIncExprAst* expr)
+{
+    expr->node->isLValue = true;
+    llvm::Value* ptrVal = expr->node->Accept(this);
+    llvm::Type* ptrTy = expr->node->exprType->ToLLVMType(context);
+
+    llvm::Value* oldVal = builder.CreateLoad(ptrTy, ptrVal, "loadtmp");
+    llvm::Value* newVal = builder.CreateAdd(oldVal, builder.getInt32(1), "inctmp");
+    builder.CreateStore(newVal, ptrVal);
+    return oldVal; // 返回原来的值,但内存中的值已变为新值
+}
+llvm::Value* CodeGen::VisitPostDecExpr(PostDecExprAst* expr)
+{
+    expr->node->isLValue = true;
+    llvm::Value* ptrVal = expr->node->Accept(this);
+    llvm::Type* ptrTy = expr->node->exprType->ToLLVMType(context);
+
+    llvm::Value* oldVal = builder.CreateLoad(ptrTy, ptrVal, "loadtmp");
+    llvm::Value* newVal = builder.CreateSub(oldVal,builder.getInt32(1), "dectmp");
+    builder.CreateStore(newVal, ptrVal);
+    return oldVal;
+}
+

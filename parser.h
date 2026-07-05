@@ -17,11 +17,8 @@ public:
 	bool Consume(TokenType tokenType);
 
 	int GetTokPrecedence();
+	// 解析二元操作符
 	std::unique_ptr<ExprAst> ParseBinOpRhs(int exprPrec, std::unique_ptr<ExprAst> lHs);
-
-
-
-public:
 	std::unique_ptr<ExprAst> ParsePrimary(); // 任务处理分发
 	std::unique_ptr<ExprAst> ParseParenExpr(); // 处理括号
 	std::unique_ptr<ExprAst> ParseExpression();	// 处理表达式
@@ -42,7 +39,7 @@ private:
 	Token tok;
 	Sema sema; // 安全检查
 	
-	// 用来记路的两个栈
+	// 用来记录的两个栈
 	std::vector<ExprAst*> breakNodes;
 	std::vector<ExprAst*> continueNodes;
 

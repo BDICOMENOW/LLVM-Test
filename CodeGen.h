@@ -28,6 +28,8 @@ public:
     llvm::Value* VisitContinueStmt(ContinueStmtAst* expr) override;
     llvm::Value* VisitUnaryExpr(UnaryExprAst* expr) override;
     llvm::Value* VisitArrayAccess(ArrayAccessAst* expr) override;
+    llvm::Value* VisitPostIncExpr(PostIncExprAst* expr) override;
+    llvm::Value* VisitPostDecExpr(PostDecExprAst* expr) override;
 
     llvm::Module* GetModule() {
         return module.get();

@@ -60,16 +60,45 @@ Token Lexer::GetNextToken()
             
             // 判断加号
             case '+': {
-                tok.type = TOKEN_PLUS;
-                tok.value = "+";
-                pos++;
+                // 这里是为了兼容 C 语言中的 ++
+                if( pos + 1 < strInput.size() && strInput[pos + 1] == '+') {
+                    tok.type = TOKEN_PLUS_PLUS;
+                    tok.value = "++";
+                    pos += 2;
+                }
+                // 这里是为了兼容 C 语言中的 += 
+                else if(pos + 1 < strInput.size() && strInput[pos + 1] == '=') {
+                    tok.type = TOKEN_PLUS_EQUAL;
+                    tok.value = "+=";
+                    pos += 2;
+                }
+                // + 
+                else {
+                    tok.type = TOKEN_PLUS;
+                    tok.value = "+";
+                    pos++;
+                }
                 break;
             }
             // 判断减号
             case '-': {
-                tok.type = TOKEN_MINUS;
-                tok.value = "-";
-                pos++;
+                // 这里是为了兼容 C 语言中的 --
+                if( pos + 1 < strInput.size() && strInput[pos + 1] == '-') {
+                    tok.type = TOKEN_MINUS_MINUS;
+                    tok.value = "--";
+                    pos += 2;
+                }
+                // 这里是为了兼容 C 语言中的 -= 
+                else if(pos + 1 < strInput.size() && strInput[pos + 1] == '=') {
+                    tok.type = TOKEN_MINUS_EQUAL;
+                    tok.value = "-=";
+                    pos += 2;
+                }
+                else {
+                    tok.type = TOKEN_MINUS;
+                    tok.value = "-";
+                    pos++;
+                }
                 break;
             }
             // 判断乘号

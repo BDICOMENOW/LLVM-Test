@@ -26,6 +26,7 @@ public:
         symbolTable.pop_back();
     }
 
+    // 重定义检查，将变量入符号表
     bool CheckVariableDecl(const std::string& name, std::shared_ptr<CType> type) {
         // 获取当前作用域！vector 的尾部元素就是当前作用域！
         auto& currentScope = symbolTable.back();

@@ -18,6 +18,8 @@ class BreakStmtAst;
 class ContinueStmtAst;
 class UnaryExprAst;
 class ArrayAccessAst;
+class PostIncExprAst;
+class PostDecExprAst;
 
 // 1. 访问（Visitor）接口
 // 定义了后端代码生成器必须实现的方法
@@ -36,6 +38,8 @@ class Visitor {
 	virtual llvm::Value* VisitContinueStmt(ContinueStmtAst* expr) = 0;
 	virtual llvm::Value* VisitUnaryExpr(UnaryExprAst* expr) = 0;
 	virtual llvm::Value* VisitArrayAccess(ArrayAccessAst* expr) = 0;
+	virtual llvm::Value* VisitPostIncExpr(PostIncExprAst* expr) = 0;
+    virtual llvm::Value* VisitPostDecExpr(PostDecExprAst* expr) = 0;
 };
 
 // 存放表达式数据的基类
@@ -50,6 +54,8 @@ public:
 
 	// 是否是左值
 	bool isLValue = false;
+
+	std::shared_ptr<CType> exprType = nullptr;
 
 };
 // 纯虚析构函数必须提供一个定义，否则链接器会报错
@@ -79,7 +85,9 @@ public:
 
 enum class UnaryOp {
 	deref,	// 指针解引用 *
-	addr	// 取地址 &
+	addr,	// 取地址 &
+	plus_plus,	// 自增运算符 ++
+	minus_minus	// 自减运算符 --
 };
 
 class UnaryExprAst : public ExprAst
@@ -103,6 +111,41 @@ public:
 public:
 	UnaryOp op;
 	std::unique_ptr<ExprAst> node;
+};
+
+class PostIncExprAst : public ExprAst
+{
+public:
+	PostIncExprAst(std::unique_ptr<ExprAst> node) :node(std::move(node)){}
+
+	void Dump(int indent = 0) const override {
+        for (int i = 0; i < indent; ++i) std::cout << " ";
+        std::cout << "PostIncExpr: ++" << std::endl;
+        if (node) node->Dump(indent + 1);
+    }
+
+	llvm::Value* Accept(Visitor* vis) override {
+		return vis->VisitPostIncExpr(this);
+	}
+public:
+	std::unique_ptr<ExprAst> node;	// 记录操作符左边的表达式
+};
+
+class PostDecExprAst : public ExprAst
+{
+public:
+	PostDecExprAst(std::unique_ptr<ExprAst> node) :node(std::move(node)){}
+
+	void Dump(int indent = 0) const override {
+        for (int i = 0; i < indent; ++i) std::cout << " ";
+        std::cout << "PostDecExpr: --" << std::endl;
+        if (node) node->Dump(indent + 1);
+    }
+	llvm::Value* Accept(Visitor* vis) override {
+		return vis->VisitPostDecExpr(this);
+	}
+public:
+std::unique_ptr<ExprAst> node;
 };
 
 // 存放二元操作符节点数据 (树枝)
@@ -171,12 +214,12 @@ public:
 class AssignExprAst : public ExprAst
 {
 public:
-	AssignExprAst(std::unique_ptr<ExprAst> left, std::unique_ptr<ExprAst> right) 
-				 :left(std::move(left)), right(std::move(right)) {};
+	AssignExprAst(std::string op, std::unique_ptr<ExprAst> left, std::unique_ptr<ExprAst> right) 
+				 : op(op),left(std::move(left)), right(std::move(right)) {};
 	~AssignExprAst() = default;
 	void Dump(int indent = 0) const override {
 		for (int i = 0; i < indent; ++i)std::cout << " ";
-		std::cout << "AssignNode: " << std::endl;
+		std::cout << "AssignExpr: " << op << std::endl;
 		// 递归打印左子树和右子树
 		if (left) left->Dump(indent + 1);
 		if (right) right->Dump(indent + 1);
@@ -185,6 +228,7 @@ public:
 		return vis->VisitAssignExpr(this);
 	}
 public:
+	std::string op;	// 记录赋值符号
 	// 为了方便 CodeGen 读取，设为 public
 	std::unique_ptr<ExprAst> left, right; // 左边是左值，右边是数值或者算式
 };
@@ -322,18 +366,19 @@ public:
 // 数组寻址
 class ArrayAccessAst : public ExprAst {
 public:
-	std::string arrayName;				// 数组名
+	std::unique_ptr<ExprAst> left;
 	std::unique_ptr<ExprAst> indexExpr;	// 偏移量
 
-	ArrayAccessAst(std::string arrayName, std::unique_ptr<ExprAst> indexExpr)
-		: arrayName(arrayName), indexExpr(std::move(indexExpr)) {}
+	ArrayAccessAst(std::unique_ptr<ExprAst> left, std::unique_ptr<ExprAst> indexExpr)
+		: left(std::move(left)), indexExpr(std::move(indexExpr)) {}
 	~ArrayAccessAst() = default;
 
 	void Dump(int indent = 0) const override {
-		for (int i = 0; i < indent; ++i) std::cout << " ";
-		std::cout << "ArrayAccess: " << arrayName <<"[]"<< std::endl;
-		if (indexExpr) { indexExpr->Dump(indent + 1); }
-	}
+        for (int i = 0; i < indent; ++i) std::cout << " ";
+        std::cout << "ArrayAccess: []" << std::endl;
+        if (left) left->Dump(indent + 1);
+        if (indexExpr) indexExpr->Dump(indent + 1); 
+    }
 
 	llvm::Value* Accept(Visitor* vis) override {
 		return vis->VisitArrayAccess(this);

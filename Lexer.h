@@ -10,6 +10,10 @@ enum TokenType {
 	TOKEN_MUL,
 	TOKEN_DIV,
 	TOKEN_MOD,
+	TOKEN_PLUS_PLUS,	// 自增
+	TOKEN_MINUS_MINUS,	// 自减
+	TOKEN_PLUS_EQUAL,	// +=
+	TOKEN_MINUS_EQUAL,	// -=
 	TOKEN_LPAREN,	// 左括号 (
 	TOKEN_RPAREN,	// 右括号 )
 	TOKEN_IDENTIFIER, // 标识符( 变量名 )
